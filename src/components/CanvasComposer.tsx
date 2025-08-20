@@ -36,42 +36,43 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
 
   if (!photoDataUrl) {
     return (
-      <div className={`flex items-center justify-center h-96 bg-muted rounded-lg ${className}`}>
+      <div className={`flex items-center justify-center bg-muted rounded-lg ${
+        className?.includes('h-[') ? className : 'h-96'
+      }`}>
         <p className="text-muted-foreground">No photo to edit</p>
       </div>
     );
   }
 
   return (
-    <div className={`space-y-4 sm:space-y-6 ${className}`}>
-      {/* Canvas */}
-      <div className="relative bg-muted rounded-lg overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-64 sm:h-80 md:h-96 cursor-move touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onWheel={handleWheel}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onKeyDown={handleKeyDown}
-          tabIndex={0}
-          role="img"
-          aria-label="Photo composition canvas. Use arrow keys to move, +/- to zoom, 0 to reset"
-        />
-        
-        {/* Touch Instructions Overlay */}
-        <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/70 text-white text-xs px-2 py-1 sm:px-3 sm:py-2 rounded-md">
-          <div className="hidden sm:block">Drag to move • Scroll/Pinch to zoom</div>
-          <div className="sm:hidden">Drag • Pinch zoom</div>
-        </div>
+    <div className="relative bg-muted rounded-lg overflow-hidden">
+      <canvas
+        ref={canvasRef}
+        className={`w-full cursor-move touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+          className?.includes('h-[') ? className : 'h-64 sm:h-80 md:h-96'
+        }`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="img"
+        aria-label="Photo composition canvas. Use arrow keys to move, +/- to zoom, 0 to reset"
+      />
+      
+      {/* Touch Instructions Overlay */}
+      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/80 text-white text-xs px-3 py-2 rounded-md backdrop-blur-sm">
+        <div className="hidden sm:block">Drag: Move • Scroll: Zoom • 0: Reset</div>
+        <div className="sm:hidden">Drag • Pinch zoom</div>
+      </div>
 
-        {/* Keyboard Instructions */}
-        <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/70 text-white text-xs px-2 py-1 sm:px-3 sm:py-2 rounded-md hidden lg:block">
-          Arrow keys: Move • +/-: Zoom • 0: Reset
-        </div>
+      {/* Keyboard Instructions */}
+      <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/80 text-white text-xs px-3 py-2 rounded-md backdrop-blur-sm hidden lg:block">
+        ←→↑↓: Move • +/-: Zoom • 0: Reset
       </div>
     </div>
   );

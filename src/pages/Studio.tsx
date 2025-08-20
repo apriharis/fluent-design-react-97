@@ -51,7 +51,7 @@ const Studio = () => {
               <span className="text-lg font-bold">Photo Studio</span>
             </div>
           </div>
-          <StudioStepper />
+          <StudioStepper compact={currentStep === 3} />
         </div>
       </header>
 
@@ -91,26 +91,17 @@ const Studio = () => {
 
         {currentStep === 3 && (
           <>
-            {/* Toolbar */}
-            <div className="mb-4 sm:mb-6">
-              <StudioToolbar onBack={handleBack} />
+            {/* Canvas Area - Full Height */}
+            <div className="pb-20"> {/* Add bottom padding for fixed toolbar */}
+              <CanvasComposer className="h-[calc(100vh-12rem)]" />
             </div>
             
-            {/* Preview */}
-            <Card variant="ghost" className="bg-gradient-subtle">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <ZoomIn className="h-5 w-5" />
-                  Preview & Save
-                </CardTitle>
-                <CardDescription>
-                  Adjust your photo position and zoom, then save your creation
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 lg:p-8">
-                <CanvasComposer />
-              </CardContent>
-            </Card>
+            {/* Fixed Bottom Action Bar */}
+            <div className="fixed bottom-0 left-0 right-0 z-fixed bg-background/95 backdrop-blur-sm border-t shadow-lg">
+              <div className="container mx-auto px-4 py-3">
+                <StudioToolbar onBack={handleBack} />
+              </div>
+            </div>
           </>
         )}
       </div>
