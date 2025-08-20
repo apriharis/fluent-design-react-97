@@ -21,18 +21,40 @@ interface UseCanvasComposerReturn {
 }
 
 export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCanvasComposerReturn => {
-  const { mode, frameSrc, photoDataUrl, zoom, offset, setZoom, setOffset } = useStudioStore();
+  const { 
+    mode, 
+    frameSrc, 
+    photoDataUrl, 
+    leftPhotoDataUrl, 
+    rightPhotoDataUrl, 
+    activeSlot,
+    zoom, 
+    offset, 
+    leftZoom, 
+    leftOffset, 
+    rightZoom, 
+    rightOffset,
+    setZoom, 
+    setOffset,
+    setLeftZoom,
+    setLeftOffset,
+    setRightZoom,
+    setRightOffset
+  } = useStudioStore();
   const isDragging = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
   const photoImage = useRef<HTMLImageElement | null>(null);
+  const leftPhotoImage = useRef<HTMLImageElement | null>(null);
+  const rightPhotoImage = useRef<HTMLImageElement | null>(null);
   const frameImage = useRef<HTMLImageElement | null>(null);
   const [safeRect, setSafeRect] = useState<SafeRect | null>(null);
+  const [leftSafeRect, setLeftSafeRect] = useState<SafeRect | null>(null);
   
   // Touch handling
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
   const [initialZoom, setInitialZoom] = useState(1);
 
-  // Load images and detect safe area
+  // Load images
   useEffect(() => {
     if (photoDataUrl) {
       const img = new Image();
@@ -45,6 +67,29 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
   }, [photoDataUrl]);
 
   useEffect(() => {
+    if (leftPhotoDataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        leftPhotoImage.current = img;
+        redraw();
+      };
+      img.src = leftPhotoDataUrl;
+    }
+  }, [leftPhotoDataUrl]);
+
+  useEffect(() => {
+    if (rightPhotoDataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        rightPhotoImage.current = img;
+        redraw();
+      };
+      img.src = rightPhotoDataUrl;
+    }
+  }, [rightPhotoDataUrl]);
+
+  // Load frame and detect safe areas
+  useEffect(() => {
     const loadFrameAndDetectSafeArea = async () => {
       if (frameSrc) {
         // Load frame image
@@ -52,10 +97,16 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
         img.onload = async () => {
           frameImage.current = img;
           
-          // Get frame meta with auto-detected safe rect
+          // Get frame meta with auto-detected safe rect for right slot
           const frameMeta = await getFrameMeta(mode);
           if (frameMeta) {
             setSafeRect(frameMeta.safeRect);
+          }
+          
+          // For landscape mode, also set left safe area
+          if (mode === 'landscape') {
+            const leftSafe = { x: 0.05, y: 0.1, width: 0.5, height: 0.8 };
+            setLeftSafeRect(leftSafe);
           }
           
           redraw();
@@ -69,7 +120,7 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !safeRect) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -86,41 +137,84 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, rect.width, rect.height);
 
-    const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
-
-    // Draw photo first (below frame)
-    if (photoImage.current) {
-      ctx.save();
+    if (mode === 'portrait') {
+      // Portrait mode - single photo
+      if (safeRect && photoImage.current) {
+        const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+        drawPhotoInSlot(ctx, photoImage.current, safeArea, zoom, offset);
+      }
+    } else {
+      // Landscape mode - dual photos
+      if (leftSafeRect && leftPhotoImage.current) {
+        const leftSafeArea = calculateSafeArea(rect.width, rect.height, leftSafeRect);
+        drawPhotoInSlot(ctx, leftPhotoImage.current, leftSafeArea, leftZoom, leftOffset);
+      }
       
-      // Calculate cover-fit dimensions with 2% bleed
-      const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-        photoImage.current.width,
-        photoImage.current.height,
-        safeArea,
-        zoom
-      );
-
-      // Apply clamped offset to keep photo edges within safe area
-      const clampedOffset = clampOffset(offset, photoWidth, photoHeight, safeArea);
-
-      // Center photo in safe area with offset
-      const photoX = safeArea.x + (safeArea.width - photoWidth) / 2 + clampedOffset.x;
-      const photoY = safeArea.y + (safeArea.height - photoHeight) / 2 + clampedOffset.y;
-
-      // Clip to safe area
-      ctx.beginPath();
-      ctx.rect(safeArea.x, safeArea.y, safeArea.width, safeArea.height);
-      ctx.clip();
-
-      ctx.drawImage(photoImage.current, photoX, photoY, photoWidth, photoHeight);
-      ctx.restore();
+      if (safeRect && rightPhotoImage.current) {
+        const rightSafeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+        drawPhotoInSlot(ctx, rightPhotoImage.current, rightSafeArea, rightZoom, rightOffset);
+      }
     }
 
     // Draw frame overlay on top
     if (frameImage.current) {
       ctx.drawImage(frameImage.current, 0, 0, rect.width, rect.height);
     }
-  }, [canvasRef, safeRect, zoom, offset]);
+  }, [canvasRef, mode, safeRect, leftSafeRect, zoom, offset, leftZoom, leftOffset, rightZoom, rightOffset]);
+
+  const drawPhotoInSlot = (
+    ctx: CanvasRenderingContext2D,
+    image: HTMLImageElement,
+    safeArea: SafeRect,
+    slotZoom: number,
+    slotOffset: { x: number; y: number }
+  ) => {
+    ctx.save();
+    
+    // Calculate cover-fit dimensions with 2% bleed
+    const { width: photoWidth, height: photoHeight } = calculateCoverFit(
+      image.width,
+      image.height,
+      safeArea,
+      slotZoom
+    );
+
+    // Apply clamped offset to keep photo edges within safe area
+    const clampedOffset = clampOffset(slotOffset, photoWidth, photoHeight, safeArea);
+
+    // Center photo in safe area with offset
+    const photoX = safeArea.x + (safeArea.width - photoWidth) / 2 + clampedOffset.x;
+    const photoY = safeArea.y + (safeArea.height - photoHeight) / 2 + clampedOffset.y;
+
+    // Clip to safe area
+    ctx.beginPath();
+    ctx.rect(safeArea.x, safeArea.y, safeArea.width, safeArea.height);
+    ctx.clip();
+
+    ctx.drawImage(image, photoX, photoY, photoWidth, photoHeight);
+    ctx.restore();
+  };
+
+  // Get current slot's zoom and offset for interactions
+  const getCurrentSlotControls = () => {
+    if (mode === 'portrait') {
+      return { zoom, offset, setZoom, setOffset };
+    } else {
+      return activeSlot === 'left' 
+        ? { zoom: leftZoom, offset: leftOffset, setZoom: setLeftZoom, setOffset: setLeftOffset }
+        : { zoom: rightZoom, offset: rightOffset, setZoom: setRightZoom, setOffset: setRightOffset };
+    }
+  };
+
+  const getCurrentSafeRect = () => {
+    if (mode === 'portrait') return safeRect;
+    return activeSlot === 'left' ? leftSafeRect : safeRect;
+  };
+
+  const getCurrentImage = () => {
+    if (mode === 'portrait') return photoImage.current;
+    return activeSlot === 'left' ? leftPhotoImage.current : rightPhotoImage.current;
+  };
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     isDragging.current = true;
@@ -129,35 +223,40 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging.current || !safeRect) return;
+    if (!isDragging.current) return;
+    
+    const currentSafeRect = getCurrentSafeRect();
+    const currentImage = getCurrentImage();
+    const { zoom: currentZoom, offset: currentOffset, setOffset: setCurrentOffset } = getCurrentSlotControls();
+    
+    if (!currentSafeRect || !currentImage) return;
 
     const deltaX = e.clientX - lastPointer.current.x;
     const deltaY = e.clientY - lastPointer.current.y;
 
     const newOffset = {
-      x: offset.x + deltaX,
-      y: offset.y + deltaY,
+      x: currentOffset.x + deltaX,
+      y: currentOffset.y + deltaY,
     };
 
-    // Apply clamping if photo is available
-    if (photoImage.current && canvasRef.current) {
+    if (canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
-      const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+      const safeArea = calculateSafeArea(rect.width, rect.height, currentSafeRect);
       const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-        photoImage.current.width,
-        photoImage.current.height,
+        currentImage.width,
+        currentImage.height,
         safeArea,
-        zoom
+        currentZoom
       );
       
       const clampedOffset = clampOffset(newOffset, photoWidth, photoHeight, safeArea);
-      setOffset(clampedOffset);
+      setCurrentOffset(clampedOffset);
     } else {
-      setOffset(newOffset);
+      setCurrentOffset(newOffset);
     }
 
     lastPointer.current = { x: e.clientX, y: e.clientY };
-  }, [offset, setOffset, safeRect, zoom, canvasRef]);
+  }, [activeSlot, mode, canvasRef]);
 
   const handlePointerUp = useCallback(() => {
     isDragging.current = false;
@@ -165,10 +264,11 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
+    const { zoom: currentZoom, setZoom: setCurrentZoom } = getCurrentSlotControls();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    const newZoom = Math.max(1, Math.min(3, zoom + delta));
-    setZoom(newZoom);
-  }, [zoom, setZoom]);
+    const newZoom = Math.max(1, Math.min(3, currentZoom + delta));
+    setCurrentZoom(newZoom);
+  }, [activeSlot, mode]);
 
   // Touch gesture handling
   const getTouchDistance = (touches: React.TouchList) => {
@@ -193,6 +293,8 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
+    const { zoom: currentZoom } = getCurrentSlotControls();
+    
     if (e.touches.length === 1) {
       // Single touch - start dragging
       isDragging.current = true;
@@ -202,38 +304,41 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
       isDragging.current = false;
       const distance = getTouchDistance(e.touches);
       setLastTouchDistance(distance);
-      setInitialZoom(zoom);
+      setInitialZoom(currentZoom);
     }
-  }, [zoom]);
+  }, [activeSlot, mode]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     
-    if (e.touches.length === 1 && isDragging.current && safeRect) {
+    const currentSafeRect = getCurrentSafeRect();
+    const currentImage = getCurrentImage();
+    const { zoom: currentZoom, offset: currentOffset, setOffset: setCurrentOffset, setZoom: setCurrentZoom } = getCurrentSlotControls();
+    
+    if (e.touches.length === 1 && isDragging.current && currentSafeRect && currentImage) {
       // Single touch drag
       const deltaX = e.touches[0].clientX - lastPointer.current.x;
       const deltaY = e.touches[0].clientY - lastPointer.current.y;
 
       const newOffset = {
-        x: offset.x + deltaX,
-        y: offset.y + deltaY,
+        x: currentOffset.x + deltaX,
+        y: currentOffset.y + deltaY,
       };
 
-      // Apply clamping if photo is available
-      if (photoImage.current && canvasRef.current) {
+      if (canvasRef.current) {
         const rect = canvasRef.current.getBoundingClientRect();
-        const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+        const safeArea = calculateSafeArea(rect.width, rect.height, currentSafeRect);
         const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-          photoImage.current.width,
-          photoImage.current.height,
+          currentImage.width,
+          currentImage.height,
           safeArea,
-          zoom
+          currentZoom
         );
         
         const clampedOffset = clampOffset(newOffset, photoWidth, photoHeight, safeArea);
-        setOffset(clampedOffset);
+        setCurrentOffset(clampedOffset);
       } else {
-        setOffset(newOffset);
+        setCurrentOffset(newOffset);
       }
 
       lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -243,10 +348,10 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
       if (currentDistance && lastTouchDistance) {
         const scaleChange = currentDistance / lastTouchDistance;
         const newZoom = Math.max(1, Math.min(3, initialZoom * scaleChange));
-        setZoom(newZoom);
+        setCurrentZoom(newZoom);
       }
     }
-  }, [offset, setOffset, setZoom, lastTouchDistance, initialZoom, safeRect, zoom, canvasRef]);
+  }, [activeSlot, mode, lastTouchDistance, initialZoom, canvasRef]);
 
   const handleTouchEnd = useCallback(() => {
     isDragging.current = false;
@@ -255,7 +360,11 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
 
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!safeRect) return;
+    const currentSafeRect = getCurrentSafeRect();
+    const currentImage = getCurrentImage();
+    const { zoom: currentZoom, offset: currentOffset, setZoom: setCurrentZoom, setOffset: setCurrentOffset } = getCurrentSlotControls();
+    
+    if (!currentSafeRect || !currentImage) return;
     
     const step = 10;
     const zoomStep = 0.1;
@@ -264,95 +373,95 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
       case 'ArrowLeft':
         e.preventDefault();
         {
-          const newOffset = { x: offset.x - step, y: offset.y };
-          if (photoImage.current && canvasRef.current) {
+          const newOffset = { x: currentOffset.x - step, y: currentOffset.y };
+          if (canvasRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
-            const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+            const safeArea = calculateSafeArea(rect.width, rect.height, currentSafeRect);
             const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-              photoImage.current.width,
-              photoImage.current.height,
+              currentImage.width,
+              currentImage.height,
               safeArea,
-              zoom
+              currentZoom
             );
-            setOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
+            setCurrentOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
           } else {
-            setOffset(newOffset);
+            setCurrentOffset(newOffset);
           }
         }
         break;
       case 'ArrowRight':
         e.preventDefault();
         {
-          const newOffset = { x: offset.x + step, y: offset.y };
-          if (photoImage.current && canvasRef.current) {
+          const newOffset = { x: currentOffset.x + step, y: currentOffset.y };
+          if (canvasRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
-            const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+            const safeArea = calculateSafeArea(rect.width, rect.height, currentSafeRect);
             const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-              photoImage.current.width,
-              photoImage.current.height,
+              currentImage.width,
+              currentImage.height,
               safeArea,
-              zoom
+              currentZoom
             );
-            setOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
+            setCurrentOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
           } else {
-            setOffset(newOffset);
+            setCurrentOffset(newOffset);
           }
         }
         break;
       case 'ArrowUp':
         e.preventDefault();
         {
-          const newOffset = { x: offset.x, y: offset.y - step };
-          if (photoImage.current && canvasRef.current) {
+          const newOffset = { x: currentOffset.x, y: currentOffset.y - step };
+          if (canvasRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
-            const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+            const safeArea = calculateSafeArea(rect.width, rect.height, currentSafeRect);
             const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-              photoImage.current.width,
-              photoImage.current.height,
+              currentImage.width,
+              currentImage.height,
               safeArea,
-              zoom
+              currentZoom
             );
-            setOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
+            setCurrentOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
           } else {
-            setOffset(newOffset);
+            setCurrentOffset(newOffset);
           }
         }
         break;
       case 'ArrowDown':
         e.preventDefault();
         {
-          const newOffset = { x: offset.x, y: offset.y + step };
-          if (photoImage.current && canvasRef.current) {
+          const newOffset = { x: currentOffset.x, y: currentOffset.y + step };
+          if (canvasRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
-            const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+            const safeArea = calculateSafeArea(rect.width, rect.height, currentSafeRect);
             const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-              photoImage.current.width,
-              photoImage.current.height,
+              currentImage.width,
+              currentImage.height,
               safeArea,
-              zoom
+              currentZoom
             );
-            setOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
+            setCurrentOffset(clampOffset(newOffset, photoWidth, photoHeight, safeArea));
           } else {
-            setOffset(newOffset);
+            setCurrentOffset(newOffset);
           }
         }
         break;
       case '+':
       case '=':
         e.preventDefault();
-        setZoom(Math.min(3, zoom + zoomStep));
+        setCurrentZoom(Math.min(3, currentZoom + zoomStep));
         break;
       case '-':
         e.preventDefault();
-        setZoom(Math.max(1, zoom - zoomStep));
+        setCurrentZoom(Math.max(1, currentZoom - zoomStep));
         break;
       case '0':
         e.preventDefault();
-        setOffset({ x: 0, y: 0 });
-        setZoom(1);
+        setCurrentOffset({ x: 0, y: 0 });
+        setCurrentZoom(1);
         break;
     }
-  }, [offset, setOffset, zoom, setZoom, safeRect, canvasRef]);
+  }, [activeSlot, mode, canvasRef]);
 
   // Redraw when dependencies change
   useEffect(() => {

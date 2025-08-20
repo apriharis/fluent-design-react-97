@@ -10,36 +10,81 @@ interface StudioToolbarProps {
 }
 
 export const StudioToolbar = ({ onBack }: StudioToolbarProps) => {
-  const { mode, frameSrc, photoDataUrl, zoom, offset, setZoom, setOffset } = useStudioStore();
+  const { 
+    mode, 
+    frameSrc, 
+    photoDataUrl, 
+    leftPhotoDataUrl, 
+    rightPhotoDataUrl, 
+    activeSlot,
+    zoom, 
+    offset, 
+    leftZoom, 
+    leftOffset, 
+    rightZoom, 
+    rightOffset,
+    setZoom, 
+    setOffset,
+    setLeftZoom,
+    setLeftOffset,
+    setRightZoom,
+    setRightOffset
+  } = useStudioStore();
+
+  // Get current slot controls
+  const getCurrentControls = () => {
+    if (mode === 'portrait') {
+      return { zoom, offset, setZoom, setOffset };
+    } else {
+      return activeSlot === 'left'
+        ? { zoom: leftZoom, offset: leftOffset, setZoom: setLeftZoom, setOffset: setLeftOffset }
+        : { zoom: rightZoom, offset: rightOffset, setZoom: setRightZoom, setOffset: setRightOffset };
+    }
+  };
+
+  const { zoom: currentZoom, offset: currentOffset, setZoom: setCurrentZoom, setOffset: setCurrentOffset } = getCurrentControls();
 
   const handleZoomIn = () => {
-    setZoom(Math.min(3, zoom + 0.1));
+    setCurrentZoom(Math.min(3, currentZoom + 0.1));
   };
 
   const handleZoomOut = () => {
-    setZoom(Math.max(1, zoom - 0.1));
+    setCurrentZoom(Math.max(1, currentZoom - 0.1));
   };
 
   const handleReset = () => {
-    setOffset({ x: 0, y: 0 });
-    setZoom(1);
+    setCurrentOffset({ x: 0, y: 0 });
+    setCurrentZoom(1);
   };
 
   const handleSave = async () => {
-    if (!photoDataUrl || !frameSrc) {
+    const hasPhotos = mode === 'portrait' ? !!photoDataUrl : !!(leftPhotoDataUrl && rightPhotoDataUrl);
+    
+    if (!hasPhotos || !frameSrc) {
       toast({
         title: "Error",
-        description: "No photo or frame selected",
+        description: mode === 'portrait' ? "No photo or frame selected" : "Both photos and frame must be selected",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      await exportImage(photoDataUrl, frameSrc, mode, zoom, offset, {
-        format: 'png',
-        quality: 0.9
-      });
+      if (mode === 'portrait') {
+        await exportImage(photoDataUrl!, frameSrc, mode, zoom, offset, {
+          format: 'png',
+          quality: 0.9
+        });
+      } else {
+        // For landscape, we'll need to update exportImage to handle dual photos
+        await exportImage(rightPhotoDataUrl!, frameSrc, mode, rightZoom, rightOffset, {
+          format: 'png',
+          quality: 0.9,
+          leftPhoto: leftPhotoDataUrl!,
+          leftZoom,
+          leftOffset
+        });
+      }
       
       toast({
         title: "Saved!",
@@ -89,7 +134,7 @@ export const StudioToolbar = ({ onBack }: StudioToolbarProps) => {
           variant="ghost"
           size="sm"
           onClick={handleZoomOut}
-          disabled={zoom <= 1}
+          disabled={currentZoom <= 1}
           aria-label="Zoom out"
           title="Zoom out (-)"
         >
@@ -97,14 +142,14 @@ export const StudioToolbar = ({ onBack }: StudioToolbarProps) => {
         </Button>
         
         <span className="text-sm text-muted-foreground min-w-[3rem] text-center px-2">
-          {Math.round(zoom * 100)}%
+          {Math.round(currentZoom * 100)}%
         </span>
         
         <Button
           variant="ghost"
           size="sm"
           onClick={handleZoomIn}
-          disabled={zoom >= 3}
+          disabled={currentZoom >= 3}
           aria-label="Zoom in"
           title="Zoom in (+)"
         >

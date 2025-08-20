@@ -10,22 +10,40 @@ import { StudioStepper } from "@/components/StudioStepper"
 import { StudioToolbar } from "@/components/StudioToolbar"
 
 const Studio = () => {
-  const { frameSrc, photoDataUrl, reset } = useStudioStore();
+  const { mode, frameSrc, photoDataUrl, leftPhotoDataUrl, rightPhotoDataUrl, reset } = useStudioStore();
   const navigate = useNavigate();
 
   const getCurrentStep = () => {
     if (!frameSrc) return 1;
-    if (!photoDataUrl) return 2;
-    return 3;
+    
+    if (mode === 'portrait') {
+      if (!photoDataUrl) return 2;
+      return 3;
+    } else {
+      // Landscape mode - need both photos
+      if (!rightPhotoDataUrl) return 2; // First capture for right slot
+      if (!leftPhotoDataUrl) return 2; // Second capture for left slot
+      return 3;
+    }
+  };
+
+  const getCurrentCaptureSlot = () => {
+    if (mode === 'portrait') return 'single';
+    if (!rightPhotoDataUrl) return 'right';
+    if (!leftPhotoDataUrl) return 'left';
+    return 'complete';
   };
 
   const currentStep = getCurrentStep();
+  const captureSlot = getCurrentCaptureSlot();
 
   const handleBack = () => {
     if (currentStep === 3) {
-      // Go back to step 2 (camera) by clearing photo
-      const { setPhotoDataUrl } = useStudioStore.getState();
+      // Go back to step 2 (camera) by clearing photos
+      const { setPhotoDataUrl, setLeftPhotoDataUrl, setRightPhotoDataUrl } = useStudioStore.getState();
       setPhotoDataUrl(undefined);
+      setLeftPhotoDataUrl(undefined);
+      setRightPhotoDataUrl(undefined);
     } else if (currentStep === 2) {
       // Go back to step 1 (frame picker) 
       reset();
@@ -77,14 +95,24 @@ const Studio = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Camera className="h-5 w-5" />
-                Take Your Photo
+                {mode === 'portrait' 
+                  ? 'Take Your Photo'
+                  : captureSlot === 'right' 
+                    ? 'Take Photo 1 (Right Side)'
+                    : 'Take Photo 2 (Left Side)'
+                }
               </CardTitle>
               <CardDescription>
-                Position yourself within the frame guidelines and capture your photo
+                {mode === 'portrait' 
+                  ? 'Position yourself within the frame guidelines and capture your photo'
+                  : captureSlot === 'right'
+                    ? 'First, capture your photo for the right side of the frame'
+                    : 'Now capture your photo for the left side of the frame'
+                }
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
-              <CameraView className="w-full" />
+              <CameraView className="w-full" captureSlot={captureSlot} />
             </CardContent>
           </Card>
         )}

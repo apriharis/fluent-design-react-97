@@ -12,10 +12,11 @@ interface CameraViewProps {
   onCapture?: (dataUrl: string) => void;
   onRetake?: () => void;
   className?: string;
+  captureSlot?: 'single' | 'left' | 'right' | 'complete';
 }
 
-const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) => {
-  const { mode, photoDataUrl, setPhotoDataUrl } = useStudioStore();
+const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single' }: CameraViewProps) => {
+  const { mode, photoDataUrl, leftPhotoDataUrl, rightPhotoDataUrl, setPhotoDataUrl, setLeftPhotoDataUrl, setRightPhotoDataUrl } = useStudioStore();
   const [showGrid, setShowGrid] = useState(false);
   const {
     ready,
@@ -40,7 +41,16 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
-        setPhotoDataUrl(dataUrl);
+        
+        // Handle different capture slots
+        if (captureSlot === 'left') {
+          setLeftPhotoDataUrl(dataUrl);
+        } else if (captureSlot === 'right') {
+          setRightPhotoDataUrl(dataUrl);
+        } else {
+          setPhotoDataUrl(dataUrl);
+        }
+        
         onCapture?.(dataUrl);
       };
       reader.readAsDataURL(file);
@@ -51,22 +61,45 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
     await startCountdown();
     const dataUrl = capture();
     if (dataUrl) {
-      setPhotoDataUrl(dataUrl);
+      // Handle different capture slots
+      if (captureSlot === 'left') {
+        setLeftPhotoDataUrl(dataUrl);
+      } else if (captureSlot === 'right') {
+        setRightPhotoDataUrl(dataUrl);
+      } else {
+        setPhotoDataUrl(dataUrl);
+      }
+      
       onCapture?.(dataUrl);
     }
   };
 
   const handleRetake = () => {
-    setPhotoDataUrl(undefined);
+    if (captureSlot === 'left') {
+      setLeftPhotoDataUrl(undefined);
+    } else if (captureSlot === 'right') {
+      setRightPhotoDataUrl(undefined);
+    } else {
+      setPhotoDataUrl(undefined);
+    }
     onRetake?.();
   };
+
+  // Get current photo for display based on capture slot
+  const getCurrentPhoto = () => {
+    if (captureSlot === 'left') return leftPhotoDataUrl;
+    if (captureSlot === 'right') return rightPhotoDataUrl;
+    return photoDataUrl;
+  };
+
+  const currentPhoto = getCurrentPhoto();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (!photoDataUrl && ready && !isCountingDown) {
+      if (!currentPhoto && ready && !isCountingDown) {
         handleCapture();
-      } else if (photoDataUrl) {
+      } else if (currentPhoto) {
         handleRetake();
       }
     }
@@ -75,12 +108,26 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
     }
   };
 
-  // Calculate safe area overlay (using fallback normalized coords)
+  // Calculate safe area overlay based on capture slot
   const fallbackSafeRects = {
     portrait: { x: 0.09, y: 0.08, width: 0.82, height: 0.78 },
-    landscape: { x: 0.62, y: 0.12, width: 0.26, height: 0.68 },
+    landscape: { 
+      right: { x: 0.62, y: 0.12, width: 0.26, height: 0.68 },
+      left: { x: 0.05, y: 0.1, width: 0.5, height: 0.8 } // Left side full width area
+    },
   };
-  const normalizedSafeRect = fallbackSafeRects[mode];
+  
+  const getSafeRect = () => {
+    if (mode === 'portrait') {
+      return fallbackSafeRects.portrait;
+    } else {
+      return captureSlot === 'left' 
+        ? fallbackSafeRects.landscape.left 
+        : fallbackSafeRects.landscape.right;
+    }
+  };
+  
+  const normalizedSafeRect = getSafeRect();
   const safeArea = {
     x: 400 * normalizedSafeRect.x,
     y: 300 * normalizedSafeRect.y,
@@ -98,7 +145,7 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
     >
       {/* Camera Feed */}
       <div className="relative w-full aspect-[4/3] bg-muted rounded-lg overflow-hidden">
-        {!photoDataUrl ? (
+        {!currentPhoto ? (
           <>
             <Webcam
               ref={webcamRef}
@@ -175,15 +222,15 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
           </>
         ) : (
           <img
-            src={photoDataUrl}
-            alt="Captured photo preview"
+            src={currentPhoto}
+            alt={`Captured photo preview${captureSlot !== 'single' ? ` (${captureSlot} side)` : ''}`}
             className="w-full h-full object-cover"
           />
         )}
       </div>
 
       {/* Device Selector */}
-      {devices.length > 1 && !photoDataUrl && (
+      {devices.length > 1 && !currentPhoto && (
         <div className="flex items-center justify-center gap-2 mt-4">
           <Video className="h-4 w-4 text-muted-foreground" />
           <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
@@ -203,7 +250,7 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
 
       {/* Camera Controls */}
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mt-6">
-        {!photoDataUrl ? (
+        {!currentPhoto ? (
           <>
             <IconButton
               variant="outline"
@@ -285,18 +332,30 @@ const CameraView = ({ onCapture, onRetake, className = '' }: CameraViewProps) =>
         {!ready && !error && (
           <p className="text-muted-foreground">Initializing camera...</p>
         )}
-        {ready && !photoDataUrl && (
+        {ready && !currentPhoto && (
           <div className="space-y-1">
             <p className="text-muted-foreground">
-              Position yourself within the dashed area
+              {captureSlot === 'left' 
+                ? 'Position yourself for the left side photo'
+                : captureSlot === 'right'
+                ? 'Position yourself within the dashed area'
+                : 'Position yourself within the dashed area'
+              }
             </p>
             <p className="text-xs text-muted-foreground">
               Press G to toggle grid • Enter/Space to capture
             </p>
           </div>
         )}
-        {photoDataUrl && (
-          <p className="text-success">Photo captured successfully!</p>
+        {currentPhoto && (
+          <p className="text-success">
+            {captureSlot === 'left' 
+              ? 'Left side photo captured!' 
+              : captureSlot === 'right'
+              ? 'Right side photo captured!'
+              : 'Photo captured successfully!'
+            }
+          </p>
         )}
       </div>
     </div>
