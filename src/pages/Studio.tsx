@@ -1,0 +1,121 @@
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ArrowLeft, Camera, ZoomIn, Palette } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
+import { useStudioStore } from "@/stores/useStudioStore"
+import CameraView from "@/components/CameraView"
+import CanvasComposer from "@/components/CanvasComposer"
+import FramePicker from "@/components/FramePicker"
+import { StudioStepper } from "@/components/StudioStepper"
+import { StudioToolbar } from "@/components/StudioToolbar"
+
+const Studio = () => {
+  const { frameSrc, photoDataUrl, reset } = useStudioStore();
+  const navigate = useNavigate();
+
+  const getCurrentStep = () => {
+    if (!frameSrc) return 1;
+    if (!photoDataUrl) return 2;
+    return 3;
+  };
+
+  const currentStep = getCurrentStep();
+
+  const handleBack = () => {
+    if (currentStep === 3) {
+      // Go back to step 2 (camera) by clearing photo
+      const { setPhotoDataUrl } = useStudioStore.getState();
+      setPhotoDataUrl(undefined);
+    } else if (currentStep === 2) {
+      // Go back to step 1 (frame picker) 
+      reset();
+    } else {
+      // Go to home
+      navigate('/');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-subtle">
+      {/* Header */}
+      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-sticky">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <Button variant="ghost" onClick={handleBack} className="flex items-center gap-2">
+              <ArrowLeft className="h-5 w-5" />
+              <span className="font-semibold">
+                {currentStep === 1 ? 'Back to Home' : 'Back'}
+              </span>
+            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold">Photo Studio</span>
+            </div>
+          </div>
+          <StudioStepper />
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8">
+        {currentStep === 1 && (
+          <div className="space-y-6">
+            <div className="text-center space-y-4">
+              <h2 className="text-3xl lg:text-4xl font-bold flex items-center justify-center gap-2">
+                <Palette className="h-8 w-8" />
+                Choose Your Frame
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Select a frame style to get started with your photo session
+              </p>
+            </div>
+            <FramePicker />
+          </div>
+        )}
+
+        {currentStep === 2 && (
+          <Card variant="elevated">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Take Your Photo
+              </CardTitle>
+              <CardDescription>
+                Position yourself within the frame guidelines and capture your photo
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <CameraView className="w-full" />
+            </CardContent>
+          </Card>
+        )}
+
+        {currentStep === 3 && (
+          <>
+            {/* Toolbar */}
+            <div className="mb-4 sm:mb-6">
+              <StudioToolbar onBack={handleBack} />
+            </div>
+            
+            {/* Preview */}
+            <Card variant="ghost" className="bg-gradient-subtle">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2">
+                  <ZoomIn className="h-5 w-5" />
+                  Preview & Save
+                </CardTitle>
+                <CardDescription>
+                  Adjust your photo position and zoom, then save your creation
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 lg:p-8">
+                <CanvasComposer />
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default Studio
