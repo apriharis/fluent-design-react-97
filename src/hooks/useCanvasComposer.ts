@@ -103,9 +103,9 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
             setSafeRect(frameMeta.safeRect);
           }
           
-          // For landscape mode, also set left safe area
+          // For landscape mode, also set left safe area (left half of canvas)
           if (mode === 'landscape') {
-            const leftSafe = { x: 0.05, y: 0.1, width: 0.5, height: 0.8 };
+            const leftSafe = { x: 0, y: 0, width: 0.48, height: 1.0 };
             setLeftSafeRect(leftSafe);
           }
           
