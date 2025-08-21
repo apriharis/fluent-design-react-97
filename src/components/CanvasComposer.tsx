@@ -2,6 +2,8 @@ import { useRef, useEffect } from 'react';
 import { useCanvasComposer } from '@/hooks/useCanvasComposer';
 import { useStudioStore } from '@/stores/useStudioStore';
 import { SlotSwitcher } from './SlotSwitcher';
+import { IconButton } from '@/components/ui/icon-button';
+import { Trash2, Undo2 } from 'lucide-react';
 
 interface CanvasComposerProps {
   className?: string;
@@ -9,7 +11,28 @@ interface CanvasComposerProps {
 
 const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { mode, photoDataUrl, leftPhotoDataUrl, rightPhotoDataUrl, activeSlot, zoom, leftZoom, rightZoom } = useStudioStore();
+  const {
+    mode,
+    photoDataUrl,
+    leftPhotoDataUrl,
+    rightPhotoDataUrl,
+    activeSlot,
+    zoom,
+    offset,
+    leftZoom,
+    leftOffset,
+    rightZoom,
+    rightOffset,
+    setPhotoDataUrl,
+    setLeftPhotoDataUrl,
+    setRightPhotoDataUrl,
+    setZoom,
+    setOffset,
+    setLeftZoom,
+    setLeftOffset,
+    setRightZoom,
+    setRightOffset,
+  } = useStudioStore();
   
   const {
     redraw,
@@ -63,6 +86,84 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
     return activeSlot === 'left' ? leftZoom : rightZoom;
   };
 
+  // Undo stack for deletions (per-slot snapshots)
+  type Snapshot =
+    | { mode: 'portrait'; slot: 'single'; dataUrl: string; zoom: number; offset: { x: number; y: number } }
+    | { mode: 'landscape'; slot: 'left' | 'right'; dataUrl: string; zoom: number; offset: { x: number; y: number } };
+
+  const undoStack = useRef<Snapshot[]>([]);
+
+  const hasCurrentPhoto = mode === 'portrait'
+    ? !!photoDataUrl
+    : activeSlot === 'left'
+      ? !!leftPhotoDataUrl
+      : !!rightPhotoDataUrl;
+
+  const canDelete = hasCurrentPhoto;
+  const canUndo = undoStack.current.length > 0;
+
+  const handleDeleteCurrent = () => {
+    if (mode === 'portrait') {
+      if (!photoDataUrl) return;
+      undoStack.current.push({
+        mode: 'portrait',
+        slot: 'single',
+        dataUrl: photoDataUrl,
+        zoom,
+        offset,
+      });
+      setPhotoDataUrl(undefined);
+      setZoom(1);
+      setOffset({ x: 0, y: 0 });
+    } else {
+      if (activeSlot === 'left') {
+        if (!leftPhotoDataUrl) return;
+        undoStack.current.push({
+          mode: 'landscape',
+          slot: 'left',
+          dataUrl: leftPhotoDataUrl,
+          zoom: leftZoom,
+          offset: leftOffset,
+        });
+        setLeftPhotoDataUrl(undefined);
+        setLeftZoom(1);
+        setLeftOffset({ x: 0, y: 0 });
+      } else {
+        if (!rightPhotoDataUrl) return;
+        undoStack.current.push({
+          mode: 'landscape',
+          slot: 'right',
+          dataUrl: rightPhotoDataUrl,
+          zoom: rightZoom,
+          offset: rightOffset,
+        });
+        setRightPhotoDataUrl(undefined);
+        setRightZoom(1);
+        setRightOffset({ x: 0, y: 0 });
+      }
+    }
+  };
+
+  const handleUndo = () => {
+    const snap = undoStack.current.pop();
+    if (!snap) return;
+    if (snap.mode === 'portrait') {
+      setPhotoDataUrl(snap.dataUrl);
+      setZoom(snap.zoom);
+      setOffset(snap.offset);
+    } else {
+      if (snap.slot === 'left') {
+        setLeftPhotoDataUrl(snap.dataUrl);
+        setLeftZoom(snap.zoom);
+        setLeftOffset(snap.offset);
+      } else {
+        setRightPhotoDataUrl(snap.dataUrl);
+        setRightZoom(snap.zoom);
+        setRightOffset(snap.offset);
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Slot Switcher for Landscape */}
@@ -104,6 +205,30 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
               <span className="text-muted-foreground">({activeSlot})</span>
             )}
           </div>
+        </div>
+
+        {/* Delete/Undo Controls */}
+        <div className="absolute top-12 right-2 sm:top-16 sm:right-4 flex items-center gap-2">
+          <IconButton
+            aria-label="Delete current photo"
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteCurrent}
+            disabled={!canDelete}
+            title="Delete current photo"
+          >
+            <Trash2 />
+          </IconButton>
+          <IconButton
+            aria-label="Undo last delete"
+            variant="secondary"
+            size="sm"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            title="Undo last delete"
+          >
+            <Undo2 />
+          </IconButton>
         </div>
 
         {/* Keyboard Instructions (Desktop only) */}
