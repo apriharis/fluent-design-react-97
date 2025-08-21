@@ -43,7 +43,9 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
   if (!hasPhotos) {
     return (
       <div className={`flex items-center justify-center bg-muted rounded-lg ${
-        className?.includes('h-[') ? className : 'h-96'
+        className?.includes('aspect-') || className?.includes('h-[') 
+          ? className 
+          : 'h-96'
       }`}>
         <p className="text-muted-foreground">
           {mode === 'portrait' 
@@ -70,8 +72,10 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
       <div className="relative bg-muted rounded-lg overflow-hidden">
         <canvas
           ref={canvasRef}
-          className={`w-full cursor-move touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-            className?.includes('h-[') ? className : 'h-64 sm:h-80 md:h-96'
+          className={`cursor-move touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+            className?.includes('aspect-') || className?.includes('h-[') 
+              ? className 
+              : 'w-full h-64 sm:h-80 md:h-96'
           }`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

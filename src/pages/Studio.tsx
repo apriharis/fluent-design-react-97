@@ -119,14 +119,21 @@ const Studio = () => {
 
         {currentStep === 3 && (
           <>
-            {/* Canvas Area - Full Height */}
-            <div className="pb-20"> {/* Add bottom padding for fixed toolbar */}
-              <CanvasComposer className="h-[calc(100vh-12rem)]" />
+            {/* Canvas Area - Proper Aspect Ratio */}
+            <div className="pb-24 px-4"> {/* Bottom padding for fixed toolbar, side padding for mobile */}
+              <div className="mx-auto max-w-4xl">
+                <CanvasComposer 
+                  className={mode === 'portrait' 
+                    ? "w-full aspect-[3/4] max-h-[calc(100vh-16rem)]" 
+                    : "w-full aspect-[4/3] max-h-[calc(100vh-16rem)]"
+                  } 
+                />
+              </div>
             </div>
             
             {/* Fixed Bottom Action Bar */}
             <div className="fixed bottom-0 left-0 right-0 z-fixed bg-background/95 backdrop-blur-sm border-t shadow-lg">
-              <div className="container mx-auto px-4 py-3">
+              <div className="container mx-auto px-4 py-4">
                 <StudioToolbar onBack={handleBack} />
               </div>
             </div>
