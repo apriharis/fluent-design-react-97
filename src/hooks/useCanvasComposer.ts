@@ -6,6 +6,7 @@ import type { SafeRect } from '@/lib/frameDetection';
 
 interface UseCanvasComposerProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
+  showMasks?: boolean;
 }
 
 interface UseCanvasComposerReturn {
@@ -20,7 +21,7 @@ interface UseCanvasComposerReturn {
   handleKeyDown: (e: React.KeyboardEvent) => void;
 }
 
-export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCanvasComposerReturn => {
+export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasComposerProps): UseCanvasComposerReturn => {
   const { 
     mode, 
     frameSrc, 
@@ -163,7 +164,64 @@ export const useCanvasComposer = ({ canvasRef }: UseCanvasComposerProps): UseCan
     if (frameImage.current) {
       ctx.drawImage(frameImage.current, 0, 0, rect.width, rect.height);
     }
-  }, [canvasRef, mode, safeRect, leftSafeRect, zoom, offset, leftZoom, leftOffset, rightZoom, rightOffset]);
+
+    // Debug: show slot masks overlay
+    if (showMasks) {
+      ctx.save();
+      if (mode === 'portrait') {
+        if (safeRect) {
+          const r = calculateSafeArea(rect.width, rect.height, safeRect);
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = '#3b82f6';
+          ctx.fillRect(r.x, r.y, r.width, r.height);
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(r.x, r.y, r.width, r.height);
+          ctx.setLineDash([]);
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#3b82f6';
+          ctx.fillText(`R: x=${r.x.toFixed(0)}, y=${r.y.toFixed(0)}, w=${r.width.toFixed(0)}, h=${r.height.toFixed(0)}`,
+            r.x + 8, r.y + 18);
+        }
+      } else {
+        if (leftSafeRect) {
+          const l = calculateSafeArea(rect.width, rect.height, leftSafeRect);
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = '#22c55e';
+          ctx.fillRect(l.x, l.y, l.width, l.height);
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = '#22c55e';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(l.x, l.y, l.width, l.height);
+          ctx.setLineDash([]);
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#22c55e';
+          ctx.fillText(`L: x=${l.x.toFixed(0)}, y=${l.y.toFixed(0)}, w=${l.width.toFixed(0)}, h=${l.height.toFixed(0)}`,
+            l.x + 8, l.y + 18);
+        }
+        if (safeRect) {
+          const r = calculateSafeArea(rect.width, rect.height, safeRect);
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = '#3b82f6';
+          ctx.fillRect(r.x, r.y, r.width, r.height);
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(r.x, r.y, r.width, r.height);
+          ctx.setLineDash([]);
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#3b82f6';
+          ctx.fillText(`R: x=${r.x.toFixed(0)}, y=${r.y.toFixed(0)}, w=${r.width.toFixed(0)}, h=${r.height.toFixed(0)}`,
+            r.x + 8, r.y + 18);
+        }
+      }
+      ctx.restore();
+    }
+  }, [canvasRef, mode, safeRect, leftSafeRect, zoom, offset, leftZoom, leftOffset, rightZoom, rightOffset, showMasks]);
 
   const drawPhotoInSlot = (
     ctx: CanvasRenderingContext2D,

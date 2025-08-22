@@ -1,8 +1,9 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useCanvasComposer } from '@/hooks/useCanvasComposer';
 import { useStudioStore } from '@/stores/useStudioStore';
 import { SlotSwitcher } from './SlotSwitcher';
 import { IconButton } from '@/components/ui/icon-button';
+import { Switch } from '@/components/ui/switch';
 import { Trash2, Undo2 } from 'lucide-react';
 
 interface CanvasComposerProps {

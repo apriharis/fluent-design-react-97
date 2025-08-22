@@ -15,7 +15,7 @@ const FALLBACK_SAFE_RECTS: Record<StudioMode, SafeRect> = {
 
 // Cache for detected safe areas
 const safeRectCache = new Map<string, SafeRect>();
-const CACHE_KEY_PREFIX = 'frame_safe_rect_';
+const CACHE_KEY_PREFIX = 'frame_safe_rect_v2_';
 
 // Load cached safe rects from localStorage
 const loadCacheFromStorage = () => {
@@ -84,6 +84,16 @@ const detectSafeRect = (imageData: ImageData): SafeRect | null => {
   };
 };
 
+// Validation for landscape safeRect to avoid full-canvas detections
+const isValidLandscapeRect = (rect: SafeRect): boolean => {
+  if (!rect) return false;
+  const x = rect.x;
+  const w = rect.width;
+  const h = rect.height;
+  const sum = x + w;
+  return x >= 0.55 && w <= 0.40 && h >= 0.45 && sum <= 0.99;
+};
+
 // Main function to get safe rect for a mode
 export const getSafeRect = async (mode: StudioMode, frameSrc: string): Promise<SafeRect> => {
   // Check cache first
@@ -116,7 +126,11 @@ export const getSafeRect = async (mode: StudioMode, frameSrc: string): Promise<S
           const imageData = ctx.getImageData(0, 0, img.width, img.height);
           const detected = detectSafeRect(imageData);
 
-          const safeRect = detected || FALLBACK_SAFE_RECTS[mode];
+          // Use detected rect if valid; validate landscape to avoid full-canvas
+          let safeRect: SafeRect = detected || FALLBACK_SAFE_RECTS[mode];
+          if (mode === 'landscape' && detected) {
+            safeRect = isValidLandscapeRect(detected) ? detected : FALLBACK_SAFE_RECTS.landscape;
+          }
           
           // Cache the result
           safeRectCache.set(mode, safeRect);
