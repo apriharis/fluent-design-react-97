@@ -48,8 +48,9 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
   const leftPhotoImage = useRef<HTMLImageElement | null>(null);
   const rightPhotoImage = useRef<HTMLImageElement | null>(null);
   const frameImage = useRef<HTMLImageElement | null>(null);
-  const [safeRect, setSafeRect] = useState<SafeRect | null>(null);
-  const [leftSafeRect, setLeftSafeRect] = useState<SafeRect | null>(null);
+  // Fixed slot definitions for consistent layout
+  const LEFT_SLOT: SafeRect = { x: 0.0, y: 0.0, width: 0.5, height: 1.0 };
+  const RIGHT_SAFE: SafeRect = { x: 0.62, y: 0.12, width: 0.26, height: 0.68 };
   
   // Touch handling
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
@@ -89,38 +90,17 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
     }
   }, [rightPhotoDataUrl]);
 
-  // Load frame and detect safe areas
+  // Load frame image only
   useEffect(() => {
-    const loadFrameAndDetectSafeArea = async () => {
-      if (frameSrc) {
-        // Load frame image
-        const img = new Image();
-        img.onload = async () => {
-          frameImage.current = img;
-          
-          // Get frame meta with auto-detected safe rect for right slot
-          const frameMeta = await getFrameMeta(mode);
-          if (frameMeta) {
-            setSafeRect(frameMeta.safeRect);
-          }
-          
-          // For landscape mode, also set left safe area based on detected right safeRect
-          if (mode === 'landscape') {
-            const rightStartX = frameMeta?.safeRect?.x ?? 0.6; // fallback near 60%
-            const margin = 0.02; // small gap between panels
-            const leftWidth = Math.max(0.45, Math.min(0.7, rightStartX - margin));
-            const leftSafe = { x: 0, y: 0, width: leftWidth, height: 1.0 };
-            setLeftSafeRect(leftSafe);
-          }
-          
-          redraw();
-        };
-        img.src = frameSrc;
-      }
-    };
-
-    loadFrameAndDetectSafeArea();
-  }, [frameSrc, mode]);
+    if (frameSrc) {
+      const img = new Image();
+      img.onload = () => {
+        frameImage.current = img;
+        redraw();
+      };
+      img.src = frameSrc;
+    }
+  }, [frameSrc]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -142,21 +122,23 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
     ctx.clearRect(0, 0, rect.width, rect.height);
 
     if (mode === 'portrait') {
-      // Portrait mode - single photo
-      if (safeRect && photoImage.current) {
-        const safeArea = calculateSafeArea(rect.width, rect.height, safeRect);
+      // Portrait mode - single photo in right safe area
+      if (photoImage.current) {
+        const safeArea = calculateSafeArea(rect.width, rect.height, RIGHT_SAFE);
         drawPhotoInSlot(ctx, photoImage.current, safeArea, zoom, offset);
       }
     } else {
-      // Landscape mode - dual photos
-      if (leftSafeRect && leftPhotoImage.current) {
-        const leftSafeArea = calculateSafeArea(rect.width, rect.height, leftSafeRect);
-        drawPhotoInSlot(ctx, leftPhotoImage.current, leftSafeArea, leftZoom, leftOffset);
+      // Landscape mode - dual photos with fixed layout
+      // Left photo fills entire left half
+      if (leftPhotoImage.current) {
+        const leftArea = calculateSafeArea(rect.width, rect.height, LEFT_SLOT);
+        drawPhotoInSlot(ctx, leftPhotoImage.current, leftArea, leftZoom, leftOffset);
       }
       
-      if (safeRect && rightPhotoImage.current) {
-        const rightSafeArea = calculateSafeArea(rect.width, rect.height, safeRect);
-        drawPhotoInSlot(ctx, rightPhotoImage.current, rightSafeArea, rightZoom, rightOffset);
+      // Right photo locked to safe rect
+      if (rightPhotoImage.current) {
+        const rightArea = calculateSafeArea(rect.width, rect.height, RIGHT_SAFE);
+        drawPhotoInSlot(ctx, rightPhotoImage.current, rightArea, rightZoom, rightOffset);
       }
     }
 
@@ -169,59 +151,56 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
     if (showMasks) {
       ctx.save();
       if (mode === 'portrait') {
-        if (safeRect) {
-          const r = calculateSafeArea(rect.width, rect.height, safeRect);
-          ctx.globalAlpha = 0.25;
-          ctx.fillStyle = '#3b82f6';
-          ctx.fillRect(r.x, r.y, r.width, r.height);
-          ctx.globalAlpha = 1;
-          ctx.setLineDash([6, 4]);
-          ctx.strokeStyle = '#3b82f6';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(r.x, r.y, r.width, r.height);
-          ctx.setLineDash([]);
-          ctx.font = '12px sans-serif';
-          ctx.fillStyle = '#3b82f6';
-          ctx.fillText(`R: x=${r.x.toFixed(0)}, y=${r.y.toFixed(0)}, w=${r.width.toFixed(0)}, h=${r.height.toFixed(0)}`,
-            r.x + 8, r.y + 18);
-        }
+        const r = calculateSafeArea(rect.width, rect.height, RIGHT_SAFE);
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#ec4899';
+        ctx.fillRect(r.x, r.y, r.width, r.height);
+        ctx.globalAlpha = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#ec4899';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(r.x, r.y, r.width, r.height);
+        ctx.setLineDash([]);
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = '#ec4899';
+        ctx.fillText(`RIGHT SAFE: x=${r.x.toFixed(0)}, y=${r.y.toFixed(0)}, w=${r.width.toFixed(0)}, h=${r.height.toFixed(0)}`,
+          r.x + 8, r.y + 18);
       } else {
-        if (leftSafeRect) {
-          const l = calculateSafeArea(rect.width, rect.height, leftSafeRect);
-          ctx.globalAlpha = 0.25;
-          ctx.fillStyle = '#22c55e';
-          ctx.fillRect(l.x, l.y, l.width, l.height);
-          ctx.globalAlpha = 1;
-          ctx.setLineDash([6, 4]);
-          ctx.strokeStyle = '#22c55e';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(l.x, l.y, l.width, l.height);
-          ctx.setLineDash([]);
-          ctx.font = '12px sans-serif';
-          ctx.fillStyle = '#22c55e';
-          ctx.fillText(`L: x=${l.x.toFixed(0)}, y=${l.y.toFixed(0)}, w=${l.width.toFixed(0)}, h=${l.height.toFixed(0)}`,
-            l.x + 8, l.y + 18);
-        }
-        if (safeRect) {
-          const r = calculateSafeArea(rect.width, rect.height, safeRect);
-          ctx.globalAlpha = 0.25;
-          ctx.fillStyle = '#3b82f6';
-          ctx.fillRect(r.x, r.y, r.width, r.height);
-          ctx.globalAlpha = 1;
-          ctx.setLineDash([6, 4]);
-          ctx.strokeStyle = '#3b82f6';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(r.x, r.y, r.width, r.height);
-          ctx.setLineDash([]);
-          ctx.font = '12px sans-serif';
-          ctx.fillStyle = '#3b82f6';
-          ctx.fillText(`R: x=${r.x.toFixed(0)}, y=${r.y.toFixed(0)}, w=${r.width.toFixed(0)}, h=${r.height.toFixed(0)}`,
-            r.x + 8, r.y + 18);
-        }
+        // Left slot (full left half)
+        const l = calculateSafeArea(rect.width, rect.height, LEFT_SLOT);
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(l.x, l.y, l.width, l.height);
+        ctx.globalAlpha = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(l.x, l.y, l.width, l.height);
+        ctx.setLineDash([]);
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillText(`LEFT FULL: x=${l.x.toFixed(0)}, y=${l.y.toFixed(0)}, w=${l.width.toFixed(0)}, h=${l.height.toFixed(0)}`,
+          l.x + 8, l.y + 18);
+        
+        // Right slot (safe rect)
+        const r = calculateSafeArea(rect.width, rect.height, RIGHT_SAFE);
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#ec4899';
+        ctx.fillRect(r.x, r.y, r.width, r.height);
+        ctx.globalAlpha = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#ec4899';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(r.x, r.y, r.width, r.height);
+        ctx.setLineDash([]);
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = '#ec4899';
+        ctx.fillText(`RIGHT SAFE: x=${r.x.toFixed(0)}, y=${r.y.toFixed(0)}, w=${r.width.toFixed(0)}, h=${r.height.toFixed(0)}`,
+          r.x + 8, r.y + 18);
       }
       ctx.restore();
     }
-  }, [canvasRef, mode, safeRect, leftSafeRect, zoom, offset, leftZoom, leftOffset, rightZoom, rightOffset, showMasks]);
+  }, [canvasRef, mode, zoom, offset, leftZoom, leftOffset, rightZoom, rightOffset, showMasks]);
 
   const drawPhotoInSlot = (
     ctx: CanvasRenderingContext2D,
@@ -268,8 +247,8 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
   };
 
   const getCurrentSafeRect = () => {
-    if (mode === 'portrait') return safeRect;
-    return activeSlot === 'left' ? leftSafeRect : safeRect;
+    if (mode === 'portrait') return RIGHT_SAFE;
+    return activeSlot === 'left' ? LEFT_SLOT : RIGHT_SAFE;
   };
 
   const getCurrentImage = () => {

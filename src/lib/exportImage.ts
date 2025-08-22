@@ -21,16 +21,14 @@ export const exportImage = async (
 ): Promise<void> => {
   const { format = 'png', quality = 0.9 } = options;
 
-  try {
-    const frameMeta = await getFrameMeta(mode);
-    if (!frameMeta) {
-      throw new Error('Failed to get frame metadata');
-    }
+  // Fixed slot definitions (same as preview)
+  const LEFT_SLOT = { x: 0.0, y: 0.0, width: 0.5, height: 1.0 };
+  const RIGHT_SAFE = { x: 0.62, y: 0.12, width: 0.26, height: 0.68 };
 
+  try {
     // Set canvas dimensions (high resolution for better quality)
     const exportWidth = 1920;
-    const exportHeight = Math.round(exportWidth / frameMeta.aspect);
-    const safeArea = calculateSafeArea(exportWidth, exportHeight, frameMeta.safeRect);
+    const exportHeight = 1440; // Fixed 4:3 aspect ratio
 
     return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
@@ -44,6 +42,31 @@ export const exportImage = async (
       canvas.width = exportWidth;
       canvas.height = exportHeight;
 
+      const drawPhotoInSlot = (
+        image: HTMLImageElement,
+        safeArea: { x: number; y: number; width: number; height: number },
+        slotZoom: number,
+        slotOffset: { x: number; y: number }
+      ) => {
+        const { width: photoWidth, height: photoHeight } = calculateCoverFit(
+          image.width,
+          image.height,
+          safeArea,
+          slotZoom
+        );
+
+        const clampedOffset = clampOffset(slotOffset, photoWidth, photoHeight, safeArea);
+        const photoX = safeArea.x + (safeArea.width - photoWidth) / 2 + clampedOffset.x;
+        const photoY = safeArea.y + (safeArea.height - photoHeight) / 2 + clampedOffset.y;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(safeArea.x, safeArea.y, safeArea.width, safeArea.height);
+        ctx.clip();
+        ctx.drawImage(image, photoX, photoY, photoWidth, photoHeight);
+        ctx.restore();
+      };
+
       // Load images (right photo always, left photo optional for landscape)
       const rightImg = new Image();
       rightImg.crossOrigin = 'anonymous';
@@ -54,72 +77,24 @@ export const exportImage = async (
         frameImg.crossOrigin = 'anonymous';
         frameImg.onload = () => {
           try {
-            // Clear canvas with white background
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, exportWidth, exportHeight);
+            // Clear canvas (no white fill to avoid background in left slot)
+            ctx.clearRect(0, 0, exportWidth, exportHeight);
 
             if (mode === 'portrait') {
-              // Portrait: single photo in detected safe area
-              const portraitSafeArea = calculateSafeArea(exportWidth, exportHeight, frameMeta.safeRect);
-              const { width: photoWidth, height: photoHeight } = calculateCoverFit(
-                rightImg.width,
-                rightImg.height,
-                portraitSafeArea,
-                zoom
-              );
-              const clampedOffset = clampOffset(offset, photoWidth, photoHeight, portraitSafeArea);
-              const photoX = portraitSafeArea.x + (portraitSafeArea.width - photoWidth) / 2 + clampedOffset.x;
-              const photoY = portraitSafeArea.y + (portraitSafeArea.height - photoHeight) / 2 + clampedOffset.y;
-
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(portraitSafeArea.x, portraitSafeArea.y, portraitSafeArea.width, portraitSafeArea.height);
-              ctx.clip();
-              ctx.drawImage(rightImg, photoX, photoY, photoWidth, photoHeight);
-              ctx.restore();
+              // Portrait: single photo in right safe area
+              const safeArea = calculateSafeArea(exportWidth, exportHeight, RIGHT_SAFE);
+              drawPhotoInSlot(rightImg, safeArea, zoom, offset);
             } else {
-              // Landscape: left and right slots
-              // Right slot (detected safe area)
-              const rightSafeArea = calculateSafeArea(exportWidth, exportHeight, frameMeta.safeRect);
-              const { width: rWidth, height: rHeight } = calculateCoverFit(
-                rightImg.width,
-                rightImg.height,
-                rightSafeArea,
-                zoom
-              );
-              const rClamped = clampOffset(offset, rWidth, rHeight, rightSafeArea);
-              const rX = rightSafeArea.x + (rightSafeArea.width - rWidth) / 2 + rClamped.x;
-              const rY = rightSafeArea.y + (rightSafeArea.height - rHeight) / 2 + rClamped.y;
-
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(rightSafeArea.x, rightSafeArea.y, rightSafeArea.width, rightSafeArea.height);
-              ctx.clip();
-              ctx.drawImage(rightImg, rX, rY, rWidth, rHeight);
-              ctx.restore();
-
-              // Left slot (predefined left area covering left side)
+              // Landscape: dual photos with fixed layout
+              // Left photo fills entire left half
               if (leftImg && options.leftPhoto) {
-                const leftSafeNorm = { x: 0.05, y: 0.1, width: 0.5, height: 0.8 };
-                const leftSafeArea = calculateSafeArea(exportWidth, exportHeight, leftSafeNorm);
-                const { width: lWidth, height: lHeight } = calculateCoverFit(
-                  leftImg.width,
-                  leftImg.height,
-                  leftSafeArea,
-                  options.leftZoom ?? 1
-                );
-                const lOffset = options.leftOffset ?? { x: 0, y: 0 };
-                const lClamped = clampOffset(lOffset, lWidth, lHeight, leftSafeArea);
-                const lX = leftSafeArea.x + (leftSafeArea.width - lWidth) / 2 + lClamped.x;
-                const lY = leftSafeArea.y + (leftSafeArea.height - lHeight) / 2 + lClamped.y;
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(leftSafeArea.x, leftSafeArea.y, leftSafeArea.width, leftSafeArea.height);
-                ctx.clip();
-                ctx.drawImage(leftImg, lX, lY, lWidth, lHeight);
-                ctx.restore();
+                const leftArea = calculateSafeArea(exportWidth, exportHeight, LEFT_SLOT);
+                drawPhotoInSlot(leftImg, leftArea, options.leftZoom ?? 1, options.leftOffset ?? { x: 0, y: 0 });
               }
+
+              // Right photo locked to safe rect
+              const rightArea = calculateSafeArea(exportWidth, exportHeight, RIGHT_SAFE);
+              drawPhotoInSlot(rightImg, rightArea, zoom, offset);
             }
 
             // Draw frame overlay on top

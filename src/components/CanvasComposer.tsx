@@ -12,6 +12,7 @@ interface CanvasComposerProps {
 
 const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showMasks, setShowMasks] = useState(false);
   const {
     mode,
     photoDataUrl,
@@ -45,7 +46,7 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
     handleTouchMove,
     handleTouchEnd,
     handleKeyDown,
-  } = useCanvasComposer({ canvasRef });
+  } = useCanvasComposer({ canvasRef, showMasks });
 
   // Resize canvas on window resize
   useEffect(() => {
@@ -230,6 +231,15 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
           >
             <Undo2 />
           </IconButton>
+        </div>
+
+        {/* Debug Toggle */}
+        <div className="absolute bottom-12 right-2 sm:bottom-16 sm:right-4 flex items-center gap-2 bg-black/80 text-white text-xs px-3 py-2 rounded-md backdrop-blur-sm">
+          <span>Show Slot Masks</span>
+          <Switch
+            checked={showMasks}
+            onCheckedChange={setShowMasks}
+          />
         </div>
 
         {/* Keyboard Instructions (Desktop only) */}
