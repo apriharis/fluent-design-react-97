@@ -8,9 +8,16 @@ export interface SafeRect {
 }
 
 // Fallback configs (normalized coordinates)
+export const RIGHT_HALF = { x: 0.5, y: 0.0, w: 0.5, h: 1.0 };
+
 const FALLBACK_SAFE_RECTS: Record<StudioMode, SafeRect> = {
   portrait: { x: 0.09, y: 0.08, width: 0.82, height: 0.78 },
-  landscape: { x: 0.62, y: 0.12, width: 0.26, height: 0.68 },
+  landscape: { 
+    x: 0.50,   // dari 0.62 → 0.575 (sedikit lebih ke tengah)
+    y: 0.06,    // dari 0.12 → 0.06  (mulai lebih atas)
+    width: 0.32,// dari 0.26 → 0.32  (kotak lebih lebar)
+    height: 0.84// dari 0.68 → 0.84  (kotak lebih tinggi)
+  },
 };
 
 // Cache for detected safe areas
@@ -93,6 +100,33 @@ const isValidLandscapeRect = (rect: SafeRect): boolean => {
   const sum = x + w;
   return x >= 0.55 && w <= 0.40 && h >= 0.45 && sum <= 0.99;
 };
+
+// Validasi landscape: harus di kanan & muat
+export function isValidLandscape(rect: {x:number;y:number;width:number;height:number}) {
+  const inRight = rect.x >= RIGHT_HALF.x && (rect.x + rect.width) <= (RIGHT_HALF.x + RIGHT_HALF.w);
+  const okY     = rect.y >= 0 && (rect.y + rect.height) <= 1;
+  const sizeOK  = rect.width > 0.18 && rect.width < 0.42 && rect.height > 0.55 && rect.height <= 0.92;
+  return inRight && okY && sizeOK;
+}
+
+// Clamp agar selalu di RIGHT_HALF
+function clampToRightHalf(r: {x:number;y:number;width:number;height:number}) {
+  let { x, y, width, height } = r;
+
+  width  = Math.min(width, RIGHT_HALF.w - 0.02);  // margin 2%
+  height = Math.min(height, 1.0 - 0.02);
+
+  if (x < RIGHT_HALF.x) x = RIGHT_HALF.x;
+
+  const rightEdge = x + width;
+  const maxRight  = RIGHT_HALF.x + RIGHT_HALF.w;
+  if (rightEdge > maxRight) x -= (rightEdge - maxRight);
+
+  if (y < 0) y = 0;
+  if (y + height > 1) y = 1 - height;
+
+  return { x, y, width, height };
+}
 
 // Main function to get safe rect for a mode
 export const getSafeRect = async (mode: StudioMode, frameSrc: string): Promise<SafeRect> => {
@@ -211,3 +245,11 @@ export const clampOffset = (
     y: Math.max(-maxOffsetY, Math.min(maxOffsetY, offset.y)),
   };
 };
+
+export function getSafeRectLandscape(detected?: {x:number;y:number;width:number;height:number}) {
+  const chosen = (detected && isValidLandscape(detected))
+    ? detected
+    : FALLBACK_SAFE_RECTS.landscape;
+
+  return clampToRightHalf(chosen);
+}
