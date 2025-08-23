@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Webcam from 'react-webcam';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Camera, RotateCcw, FlipHorizontal, Grid3X3, Video, Upload } from 'lucide-react';
 import { useCamera } from '@/hooks/useCamera';
 import { useStudioStore } from '@/stores/useStudioStore';
-import { calculateSafeArea } from '@/lib/frameUtils';
 
 interface CameraViewProps {
   onCapture?: (dataUrl: string) => void;
@@ -16,8 +15,15 @@ interface CameraViewProps {
 }
 
 const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single' }: CameraViewProps) => {
-  const { mode, photoDataUrl, leftPhotoDataUrl, rightPhotoDataUrl, setPhotoDataUrl, setLeftPhotoDataUrl, setRightPhotoDataUrl } = useStudioStore();
+  const { 
+    mode, photoDataUrl, leftPhotoDataUrl, rightPhotoDataUrl, 
+    setPhotoDataUrl, setLeftPhotoDataUrl, setRightPhotoDataUrl,
+    setLeftZoom, setLeftOffset, setRightZoom, setRightOffset,
+    setZoom, setOffset
+  } = useStudioStore();
+
   const [showGrid, setShowGrid] = useState(false);
+
   const {
     ready,
     startCountdown,
@@ -25,24 +31,73 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
     error,
     mirrored,
     toggleMirror,
-    webcamRef,
+    webcamRef,                 // ← pakai ref dari hook (JANGAN deklarasi ulang)
     isCountingDown,
     countdown,
     devices,
     selectedDeviceId,
     setSelectedDeviceId,
-    handleUserMedia,
-    handleUserMediaError,
   } = useCamera();
 
+  // Container untuk mapping object-fit cover
+  const containerRef = useRef<HTMLDivElement>(null);
+  // PATCH 1: Pakai stageRef (inner container 4:3)
+  const stageRef = useRef<HTMLDivElement>(null);
+
+  // Samakan dengan composer (normalized 0..1)
+  const RIGHT_SAFE = { x: 0.575, y: 0.06, width: 0.40, height: 0.84 };
+  const LEFT_HALF  = { x: 0.0,   y: 0.0,  width: 0.5,  height: 1.0  };
+
+  // ========= Utils: mapping kotak biru → sumber video =========
+  function getDisplayedVideoRect(video: HTMLVideoElement, container: HTMLElement) {
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return { x: 0, y: 0, w: cw, h: ch, scale: 1 };
+
+    // object-fit: cover
+    const scale = Math.max(cw / vw, ch / vh);
+    const w = vw * scale;
+    const h = vh * scale;
+    const x = (cw - w) / 2;
+    const y = (ch - h) / 2;
+
+    return { x, y, w, h, scale };
+  }
+
+  function safeToPx(safe: typeof RIGHT_SAFE | typeof LEFT_HALF, cw: number, ch: number) {
+    return { x: safe.x * cw, y: safe.y * ch, w: safe.width * cw, h: safe.height * ch };
+  }
+
+  // PATCH 2: Crop aware terhadap mirror
+function containerPxToVideoPx(
+  pxRect: {x:number;y:number;w:number;h:number},
+  displayed: {x:number;y:number;w:number;h:number;scale:number},
+  mirrored: boolean,
+  sourceW: number
+) {
+  const u  = (pxRect.x - displayed.x) / displayed.scale;
+  const v  = (pxRect.y - displayed.y) / displayed.scale;
+  const sw =  pxRect.w               / displayed.scale;
+  const sh =  pxRect.h               / displayed.scale;
+
+  const sx = mirrored ? (sourceW - (u + sw)) : u; // ← ini kuncinya
+  const sy = v;
+
+  return { sx, sy, sw, sh };
+}
+
+
+
+  // ========= Upload (fallback) =========
   const handleUploadFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
-        
-        // Handle different capture slots
         if (captureSlot === 'left') {
           setLeftPhotoDataUrl(dataUrl);
         } else if (captureSlot === 'right') {
@@ -50,29 +105,85 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
         } else {
           setPhotoDataUrl(dataUrl);
         }
-        
         onCapture?.(dataUrl);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleCapture = async () => {
-    await startCountdown();
-    const dataUrl = capture();
-    if (dataUrl) {
-      // Handle different capture slots
-      if (captureSlot === 'left') {
-        setLeftPhotoDataUrl(dataUrl);
-      } else if (captureSlot === 'right') {
-        setRightPhotoDataUrl(dataUrl);
-      } else {
-        setPhotoDataUrl(dataUrl);
-      }
-      
-      onCapture?.(dataUrl);
+  // ========= Capture =========
+const handleCapture = async () => {
+  await startCountdown();
+
+  const video = webcamRef.current?.video as HTMLVideoElement | undefined;
+  const stage = stageRef.current as HTMLDivElement | undefined;
+  if (!video) return;
+
+  // SLOT KANAN: crop tepat RIGHT_SAFE
+  if (captureSlot === 'right') {
+    if (!stage) return;
+
+    const disp = getDisplayedVideoRect(video, stage);
+    const srPx = safeToPx(RIGHT_SAFE, stage.clientWidth, stage.clientHeight);
+    let { sx, sy, sw, sh } = containerPxToVideoPx(srPx, disp, mirrored, video.videoWidth);
+
+    // clamp ke ukuran sumber
+    const maxW = video.videoWidth, maxH = video.videoHeight;
+    sx = Math.max(0, Math.min(sx, maxW));
+    sy = Math.max(0, Math.min(sy, maxH));
+    sw = Math.max(1, Math.min(sw, maxW - sx));
+    sh = Math.max(1, Math.min(sh, maxH - sy));
+
+    // canvas output = ukuran crop
+    const out = document.createElement('canvas');
+    out.width  = Math.round(sw);
+    out.height = Math.round(sh);
+    const octx = out.getContext('2d')!;
+
+    // 🔁 JAGA ORIENTASI: kalau mirrored → flip horizontal
+    if (mirrored) {
+      octx.translate(out.width, 0);
+      octx.scale(-1, 1);
     }
-  };
+
+    octx.drawImage(video, sx, sy, sw, sh, 0, 0, out.width, out.height);
+
+    const dataUrl = out.toDataURL('image/jpeg', 0.92);
+    setRightPhotoDataUrl(dataUrl);
+    setRightZoom(1);
+    setRightOffset({ x: 0, y: 0 });
+    onCapture?.(dataUrl);
+    return;
+  }
+
+  // SLOT KIRI / SINGLE: ambil full frame dari video (bukan capture()),
+  // supaya bisa di-mirror juga jika diperlukan → WYSIWYG
+  const out = document.createElement('canvas');
+  out.width  = video.videoWidth;
+  out.height = video.videoHeight;
+  const octx = out.getContext('2d')!;
+
+  if (mirrored) {
+    octx.translate(out.width, 0);
+    octx.scale(-1, 1);
+  }
+
+  octx.drawImage(video, 0, 0, out.width, out.height);
+
+  const dataUrl = out.toDataURL('image/jpeg', 0.92);
+
+  if (captureSlot === 'left') {
+    setLeftPhotoDataUrl(dataUrl);
+    setLeftZoom(1);
+    setLeftOffset({ x: 0, y: 0 });
+  } else {
+    setPhotoDataUrl(dataUrl);
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  }
+  onCapture?.(dataUrl);
+};
+
 
   const handleRetake = () => {
     if (captureSlot === 'left') {
@@ -85,97 +196,69 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
     onRetake?.();
   };
 
-  // Get current photo for display based on capture slot
   const getCurrentPhoto = () => {
     if (captureSlot === 'left') return leftPhotoDataUrl;
     if (captureSlot === 'right') return rightPhotoDataUrl;
     return photoDataUrl;
   };
-
   const currentPhoto = getCurrentPhoto();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (!currentPhoto && ready && !isCountingDown) {
-        handleCapture();
-      } else if (currentPhoto) {
-        handleRetake();
-      }
+      if (!currentPhoto && ready && !isCountingDown) handleCapture();
+      else if (currentPhoto) handleRetake();
     }
-    if (e.key === 'g' || e.key === 'G') {
-      setShowGrid(!showGrid);
-    }
+    if (e.key === 'g' || e.key === 'G') setShowGrid((v) => !v);
   };
 
-  // Calculate safe area overlay based on capture slot
-  const fallbackSafeRects = {
-    portrait: { x: 0.09, y: 0.08, width: 0.82, height: 0.78 },
-    landscape: { 
-      right: { x: 0.62, y: 0.12, width: 0.26, height: 0.68 },
-      left: { x: 0.05, y: 0.1, width: 0.5, height: 0.8 } // Left side full width area
-    },
-  };
-  
-  const getSafeRect = () => {
+  // Overlay safe rect untuk capture:
+  const getOverlayRect = () => {
     if (mode === 'portrait') {
-      return fallbackSafeRects.portrait;
-    } else {
-      return captureSlot === 'left' 
-        ? fallbackSafeRects.landscape.left 
-        : fallbackSafeRects.landscape.right;
+      return { x: 0.09, y: 0.08, width: 0.82, height: 0.78 };
     }
+    if (captureSlot === 'left') {
+      return LEFT_HALF; // overlay kiri = setengah kiri
+    }
+    // right:
+    return RIGHT_SAFE;  // overlay kanan persis RIGHT_SAFE
   };
-  
-  const normalizedSafeRect = getSafeRect();
-  const safeArea = {
-    x: 400 * normalizedSafeRect.x,
-    y: 300 * normalizedSafeRect.y,
-    width: 400 * normalizedSafeRect.width,
-    height: 300 * normalizedSafeRect.height,
-  };
+  const r = getOverlayRect();
 
   return (
-    <div 
-      className={`relative w-full h-full bg-background ${className}`}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-      role="region"
-      aria-label="Camera view for photo capture"
-    >
-      {/* Camera Feed */}
-      <div className="relative w-full aspect-[4/3] bg-muted rounded-lg overflow-hidden">
+    <div className={`relative w-full h-full bg-background ${className}`}>
+      <div
+        ref={stageRef}
+        className="relative w-full aspect-[4/3] bg-muted rounded-lg overflow-hidden"
+      >
         {!currentPhoto ? (
           <>
             <Webcam
               ref={webcamRef}
               audio={false}
-              muted={true}
-              playsInline={true}
+              muted
+              playsInline
               screenshotFormat="image/jpeg"
               videoConstraints={{
                 deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-                facingMode: selectedDeviceId ? undefined : 'user',
+                facingMode: "user",
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
               }}
-              mirrored={mirrored}
-              onUserMedia={handleUserMedia}
-              onUserMediaError={handleUserMediaError}
               className="w-full h-full object-cover"
-              style={{ objectFit: 'cover' }}
-              aria-label="Live camera feed"
+              mirrored={mirrored}
             />
-            
-            {/* Safe Area Overlay */}
-            {ready && safeArea && (
+
+            {/* PATCH 4: Overlay kotak biru tetap % di stageRef */}
+            {ready && r && (
               <div
                 className="absolute border-2 border-primary border-dashed opacity-50 pointer-events-none"
                 style={{
-                  left: `${(safeArea.x / 400) * 100}%`,
-                  top: `${(safeArea.y / 300) * 100}%`,
-                  width: `${(safeArea.width / 400) * 100}%`,
-                  height: `${(safeArea.height / 300) * 100}%`,
+                  left:   `${r.x * 100}%`,
+                  top:    `${r.y * 100}%`,
+                  width:  `${r.width * 100}%`,
+                  height: `${r.height * 100}%`,
+                  boxSizing: 'border-box',
                 }}
                 aria-hidden="true"
               />
@@ -248,7 +331,7 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
         </div>
       )}
 
-      {/* Camera Controls */}
+      {/* Controls */}
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mt-6">
         {!currentPhoto ? (
           <>
@@ -301,12 +384,7 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 aria-label="Upload photo instead"
               />
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-4 sm:px-6"
-                title="Upload photo instead"
-              >
+              <Button variant="outline" size="lg" className="px-4 sm:px-6" title="Upload photo instead">
                 <Upload className="mr-2 h-5 w-5" />
                 <span className="hidden sm:inline">Upload</span>
               </Button>
@@ -329,9 +407,7 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
 
       {/* Status Text */}
       <div className="text-center mt-4" role="status" aria-live="polite">
-        {!ready && !error && (
-          <p className="text-muted-foreground">Initializing camera...</p>
-        )}
+        {!ready && !error && <p className="text-muted-foreground">Initializing camera...</p>}
         {ready && !currentPhoto && (
           <div className="space-y-1">
             <p className="text-muted-foreground">
@@ -339,8 +415,7 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
                 ? 'Position yourself for the left side photo'
                 : captureSlot === 'right'
                 ? 'Position yourself within the dashed area'
-                : 'Position yourself within the dashed area'
-              }
+                : 'Position yourself within the dashed area'}
             </p>
             <p className="text-xs text-muted-foreground">
               Press G to toggle grid • Enter/Space to capture
@@ -353,8 +428,7 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
               ? 'Left side photo captured!' 
               : captureSlot === 'right'
               ? 'Right side photo captured!'
-              : 'Photo captured successfully!'
-            }
+              : 'Photo captured successfully!'}
           </p>
         )}
       </div>

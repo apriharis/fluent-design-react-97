@@ -50,7 +50,7 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
   const frameImage = useRef<HTMLImageElement | null>(null);
   // Fixed slot definitions for consistent layout
   const LEFT_SLOT: SafeRect = { x: 0.0, y: 0.0, width: 0.5, height: 1.0 };
-  const RIGHT_SAFE: SafeRect = { x: 0.62, y: 0.12, width: 0.26, height: 0.68 };
+  const RIGHT_SAFE: SafeRect = { x: 0.575, y: 0.06, width: 0.40  , height: 0.84 };
   
   // Touch handling
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
