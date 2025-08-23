@@ -1,73 +1,144 @@
-# Welcome to your Lovable project
+<p align="center">
+  <img src="https://img.icons8.com/ios-filled/100/camera.png" alt="Volab Logo" width="80"/>
+</p>
 
-## Project info
+<h1 align="center">📸 Volab Studio</h1>
 
-**URL**: https://lovable.dev/projects/4b259455-005b-4552-bf6e-34f520c25757
+<p align="center">
+  Aplikasi web untuk ambil foto dengan frame kiri & kanan, lalu bisa langsung di-export.<br/>
+  Dibuat dengan stack modern supaya ringan & gampang dipakai.
+</p>
 
-## How can I edit this code?
+<p align="center">
+  <img src="https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript&logoColor=white"/>
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Tailwind_CSS-3.3-06B6D4?logo=tailwind-css&logoColor=white"/>
+  <img src="https://img.shields.io/badge/shadcn/ui-latest-000000?logo=vercel&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Deployed_on-Vercel-000000?logo=vercel&logoColor=white"/>
+</p>
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## ✨ Fitur Utama
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/4b259455-005b-4552-bf6e-34f520c25757) and start prompting.
+- **Dual Slot Landscape** - Foto terbagi kiri & kanan dengan frame khusus
+- **Portrait Mode** - Mode single photo untuk potret
+- **WYSIWYG Camera** - Preview sama persis dengan hasil akhir
+- **Export Konsisten** - Hasil export PNG/JPEG identik dengan preview
+- **Responsif** - Bekerja baik di desktop dan mobile
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## 🚀 Tech Stack
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **TypeScript** – bahasa utama
+- **React** – frontend framework
+- **Tailwind CSS** – styling modern
+- **shadcn/ui** – komponen UI
+- **Vercel** – hosting & deployment
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+## 🛠️ Cara Jalankan
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. Clone repository:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+git clone <url-repo>
+cd <nama-folder>
+```
 
-# Step 3: Install the necessary dependencies.
+2. Install dependencies:
+
+```bash
 npm i
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Jalankan aplikasi:
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Buka di browser: http://localhost:3000
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 🌐 Deployment
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Deploy sangat mudah via Vercel:
 
-## What technologies are used for this project?
+1. Push repo ke GitHub
+2. Connect ke vercel.com
+3. Done ✅
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 📷 Preview
 
-## How can I deploy this project?
+![Halaman Kamera](./screenshots/landing.png)
+*Halaman Landing*
 
-Simply open [Lovable](https://lovable.dev/projects/4b259455-005b-4552-bf6e-34f520c25757) and click on Share -> Publish.
+![Hasil Capture](./screenshots/stepper.png)
+*Halaman Stepper*
 
-## Can I connect a custom domain to my Lovable project?
+![Hasil Capture](./screenshots/canvas.png)
+*Halaman Canvas*
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 📂 Struktur Project
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+```
+src/
+├── components/     # Komponen React
+├── hooks/         # Custom hooks
+├── lib/           # Utilities & constants
+├── types/         # TypeScript definitions
+└── styles/        # File styling
+```
+
+---
+
+## ⚙️ Konfigurasi
+
+File `src/lib/slots.ts` berisi pengaturan frame:
+
+```typescript
+export const RIGHT_SAFE = {
+  x: 550,
+  y: 100,
+  width: 300,
+  height: 400
+};
+
+export const LEFT_SLOT = {
+  x: 0,
+  y: 0,
+  width: 500,
+  height: 600
+};
+```
+
+---
+
+## 📖 Catatan
+
+- Pastikan kamera/permission aktif
+- Support mode portrait & landscape
+- Export hasil foto identik dengan preview
+- Kompatibel dengan berbagai browser modern
+
+---
+
+## 🐛 Melaporkan Masalah
+
+Jika menemukan bug atau memiliki saran, silakan buat issue di repository ini.
+
+## 🤝 Berkontribusi
+
+Kontribusi selalu diterima! Silakan fork repository ini dan buat pull request dengan perubahan Anda.
+
+---
+
+**Happy Coding! 📷✨**

@@ -22,13 +22,19 @@ export const exportImage = async (
   const { format = 'png', quality = 0.9 } = options;
 
   // Fixed slot definitions (same as preview)
-  const LEFT_SLOT = { x: 0.0, y: 0.0, width: 0.5, height: 1.0 };
-  const RIGHT_SAFE = { x: 0.62, y: 0.12, width: 0.26, height: 0.68 };
+  const LEFT_SLOT     = { x: 0.0, y: 0.0, width: 0.5, height: 1.0 };
+  const RIGHT_SAFE    = { x: 0.575, y: 0.06, width: 0.40, height: 0.84 };
+  const PORTRAIT_FULL = { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
 
   try {
     // Set canvas dimensions (high resolution for better quality)
     const exportWidth = 1920;
     const exportHeight = 1440; // Fixed 4:3 aspect ratio
+
+    if (mode === 'portrait') {
+      const exportWidth = 1440;
+      const exportHeight = 1920; // 3:4 aspect
+    }
 
     return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
@@ -77,27 +83,29 @@ export const exportImage = async (
         frameImg.crossOrigin = 'anonymous';
         frameImg.onload = () => {
           try {
-            // Clear canvas (no white fill to avoid background in left slot)
+            // PATCH: pakai ukuran asli frame
+            const exportWidth = frameImg.naturalWidth;
+            const exportHeight = frameImg.naturalHeight;
+
+            canvas.width = exportWidth;
+            canvas.height = exportHeight;
+
             ctx.clearRect(0, 0, exportWidth, exportHeight);
 
             if (mode === 'portrait') {
-              // Portrait: single photo in right safe area
-              const safeArea = calculateSafeArea(exportWidth, exportHeight, RIGHT_SAFE);
+              const safeArea = calculateSafeArea(exportWidth, exportHeight, PORTRAIT_FULL);
               drawPhotoInSlot(rightImg, safeArea, zoom, offset);
             } else {
-              // Landscape: dual photos with fixed layout
-              // Left photo fills entire left half
+              // landscape logic (left + right)
               if (leftImg && options.leftPhoto) {
                 const leftArea = calculateSafeArea(exportWidth, exportHeight, LEFT_SLOT);
                 drawPhotoInSlot(leftImg, leftArea, options.leftZoom ?? 1, options.leftOffset ?? { x: 0, y: 0 });
               }
-
-              // Right photo locked to safe rect
               const rightArea = calculateSafeArea(exportWidth, exportHeight, RIGHT_SAFE);
               drawPhotoInSlot(rightImg, rightArea, zoom, offset);
             }
 
-            // Draw frame overlay on top
+            // terakhir: gambar frame ukuran asli
             ctx.drawImage(frameImg, 0, 0, exportWidth, exportHeight);
 
             // Convert to blob and download
@@ -111,14 +119,14 @@ export const exportImage = async (
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                
+
                 link.href = url;
                 link.download = `volab-${timestamp}.${format}`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
-                
+
                 resolve();
               },
               format === 'jpeg' ? 'image/jpeg' : 'image/png',

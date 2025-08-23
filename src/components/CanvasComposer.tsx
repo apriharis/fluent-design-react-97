@@ -1,16 +1,15 @@
-import { useRef, useEffect, useState } from 'react';
-import { useCanvasComposer } from '@/hooks/useCanvasComposer';
-import { useStudioStore } from '@/stores/useStudioStore';
-import { SlotSwitcher } from './SlotSwitcher';
-import { IconButton } from '@/components/ui/icon-button';
-import { Switch } from '@/components/ui/switch';
-import { Trash2, Undo2 } from 'lucide-react';
+import { useRef, useState } from "react";
+import { useStudioStore } from "@/stores/useStudioStore";
+import { cn } from "@/lib/utils";
+import { useCanvasComposer } from "@/hooks/useCanvasComposer";
+import { SlotSwitcher } from "./SlotSwitcher";
+import { IconButton } from "@/components/ui/icon-button";
+import { Switch } from "@/components/ui/switch";
+import { Trash2, Undo2 } from "lucide-react";
 
-interface CanvasComposerProps {
-  className?: string;
-}
+type CanvasComposerProps = { className?: string };
 
-const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
+export default function CanvasComposer({ className = "" }: CanvasComposerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showMasks, setShowMasks] = useState(false);
   const {
@@ -35,7 +34,7 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
     setRightZoom,
     setRightOffset,
   } = useStudioStore();
-  
+
   const {
     redraw,
     handlePointerDown,
@@ -48,35 +47,34 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
     handleKeyDown,
   } = useCanvasComposer({ canvasRef, showMasks });
 
-  // Resize canvas on window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        redraw();
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [redraw]);
+  // Aspect ratio class
+  const aspectClass = mode === "portrait" ? "aspect-[3/4]" : "aspect-[4/3]";
+  // Max width/height by viewport
+  const maxByViewport =
+    mode === "portrait"
+      ? "max-w-[min(100%,calc((100vh-16rem)*3/4))] max-h-[calc(100vh-16rem)]"
+      : "max-w-[min(100%,calc((100vh-16rem)*4/3))] max-h-[calc(100vh-16rem)]";
 
   // Check if we have photos to display
-  const hasPhotos = mode === 'portrait' 
-    ? !!photoDataUrl 
-    : !!(leftPhotoDataUrl && rightPhotoDataUrl);
+  const hasPhotos =
+    mode === "portrait"
+      ? !!photoDataUrl
+      : !!(leftPhotoDataUrl && rightPhotoDataUrl);
 
   if (!hasPhotos) {
     return (
-      <div className={`flex items-center justify-center bg-muted rounded-lg ${
-        className?.includes('aspect-') || className?.includes('h-[') 
-          ? className 
-          : 'h-96'
-      }`}>
+      <div
+        className={cn(
+          "flex items-center justify-center bg-muted rounded-lg",
+          aspectClass,
+          maxByViewport,
+          className
+        )}
+      >
         <p className="text-muted-foreground">
-          {mode === 'portrait' 
-            ? 'No photo to edit' 
-            : 'Capture both photos to start editing'
-          }
+          {mode === "portrait"
+            ? "No photo to edit"
+            : "Capture both photos to start editing"}
         </p>
       </div>
     );
@@ -84,20 +82,33 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
 
   // Get current zoom for display
   const getCurrentZoom = () => {
-    if (mode === 'portrait') return zoom;
-    return activeSlot === 'left' ? leftZoom : rightZoom;
+    if (mode === "portrait") return zoom;
+    return activeSlot === "left" ? leftZoom : rightZoom;
   };
 
   // Undo stack for deletions (per-slot snapshots)
   type Snapshot =
-    | { mode: 'portrait'; slot: 'single'; dataUrl: string; zoom: number; offset: { x: number; y: number } }
-    | { mode: 'landscape'; slot: 'left' | 'right'; dataUrl: string; zoom: number; offset: { x: number; y: number } };
+    | {
+        mode: "portrait";
+        slot: "single";
+        dataUrl: string;
+        zoom: number;
+        offset: { x: number; y: number };
+      }
+    | {
+        mode: "landscape";
+        slot: "left" | "right";
+        dataUrl: string;
+        zoom: number;
+        offset: { x: number; y: number };
+      };
 
   const undoStack = useRef<Snapshot[]>([]);
 
-  const hasCurrentPhoto = mode === 'portrait'
-    ? !!photoDataUrl
-    : activeSlot === 'left'
+  const hasCurrentPhoto =
+    mode === "portrait"
+      ? !!photoDataUrl
+      : activeSlot === "left"
       ? !!leftPhotoDataUrl
       : !!rightPhotoDataUrl;
 
@@ -105,11 +116,11 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
   const canUndo = undoStack.current.length > 0;
 
   const handleDeleteCurrent = () => {
-    if (mode === 'portrait') {
+    if (mode === "portrait") {
       if (!photoDataUrl) return;
       undoStack.current.push({
-        mode: 'portrait',
-        slot: 'single',
+        mode: "portrait",
+        slot: "single",
         dataUrl: photoDataUrl,
         zoom,
         offset,
@@ -118,11 +129,11 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
       setZoom(1);
       setOffset({ x: 0, y: 0 });
     } else {
-      if (activeSlot === 'left') {
+      if (activeSlot === "left") {
         if (!leftPhotoDataUrl) return;
         undoStack.current.push({
-          mode: 'landscape',
-          slot: 'left',
+          mode: "landscape",
+          slot: "left",
           dataUrl: leftPhotoDataUrl,
           zoom: leftZoom,
           offset: leftOffset,
@@ -133,8 +144,8 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
       } else {
         if (!rightPhotoDataUrl) return;
         undoStack.current.push({
-          mode: 'landscape',
-          slot: 'right',
+          mode: "landscape",
+          slot: "right",
           dataUrl: rightPhotoDataUrl,
           zoom: rightZoom,
           offset: rightOffset,
@@ -149,12 +160,12 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
   const handleUndo = () => {
     const snap = undoStack.current.pop();
     if (!snap) return;
-    if (snap.mode === 'portrait') {
+    if (snap.mode === "portrait") {
       setPhotoDataUrl(snap.dataUrl);
       setZoom(snap.zoom);
       setOffset(snap.offset);
     } else {
-      if (snap.slot === 'left') {
+      if (snap.slot === "left") {
         setLeftPhotoDataUrl(snap.dataUrl);
         setLeftZoom(snap.zoom);
         setLeftOffset(snap.offset);
@@ -170,16 +181,20 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
     <div className="space-y-4">
       {/* Slot Switcher for Landscape */}
       <SlotSwitcher />
-      
-      {/* Canvas Container */}
-      <div className="relative bg-muted rounded-lg overflow-hidden">
+
+      {/* Canvas Container with forced aspect ratio */}
+      <div
+        className={cn(
+          "relative mx-auto w-full",
+          aspectClass,
+          maxByViewport,
+          "rounded-2xl overflow-hidden bg-black/5",
+          className
+        )}
+      >
         <canvas
           ref={canvasRef}
-          className={`cursor-move touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-            className?.includes('aspect-') || className?.includes('h-[') 
-              ? className 
-              : 'w-full h-64 sm:h-80 md:h-96'
-          }`}
+          className="absolute inset-0 w-full h-full block"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -192,10 +207,12 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
           role="img"
           aria-label="Photo composition canvas. Use arrow keys to move, +/- to zoom, 0 to reset"
         />
-        
+
         {/* Help Text Overlay */}
         <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/80 text-white text-xs px-3 py-2 rounded-md backdrop-blur-sm">
-          <div className="hidden sm:block">Drag to move • Pinch/Scroll to zoom • 0 to reset</div>
+          <div className="hidden sm:block">
+            Drag to move • Pinch/Scroll to zoom • 0 to reset
+          </div>
           <div className="sm:hidden">Drag • Pinch zoom</div>
         </div>
 
@@ -203,7 +220,7 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
         <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/80 text-white text-xs px-3 py-2 rounded-md backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <span>{Math.round(getCurrentZoom() * 100)}%</span>
-            {mode === 'landscape' && (
+            {mode === "landscape" && (
               <span className="text-muted-foreground">({activeSlot})</span>
             )}
           </div>
@@ -236,10 +253,7 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
         {/* Debug Toggle */}
         <div className="absolute bottom-12 right-2 sm:bottom-16 sm:right-4 flex items-center gap-2 bg-black/80 text-white text-xs px-3 py-2 rounded-md backdrop-blur-sm">
           <span>Show Slot Masks</span>
-          <Switch
-            checked={showMasks}
-            onCheckedChange={setShowMasks}
-          />
+          <Switch checked={showMasks} onCheckedChange={setShowMasks} />
         </div>
 
         {/* Keyboard Instructions (Desktop only) */}
@@ -249,6 +263,4 @@ const CanvasComposer = ({ className = '' }: CanvasComposerProps) => {
       </div>
     </div>
   );
-};
-
-export default CanvasComposer;
+}
