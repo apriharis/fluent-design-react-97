@@ -1,6 +1,7 @@
 import { getFrameMeta, calculateSafeArea } from './frameUtils';
 import { calculateCoverFit, clampOffset } from './frameDetection';
 import { StudioMode } from '@/types/studio';
+import { SLOT_CONFIG } from '@/constants/slots';
 
 export interface ExportOptions {
   format?: 'png' | 'jpeg';
@@ -21,10 +22,8 @@ export const exportImage = async (
 ): Promise<void> => {
   const { format = 'png', quality = 0.9 } = options;
 
-  // Fixed slot definitions (same as preview)
-  const LEFT_SLOT     = { x: 0.0, y: 0.0, width: 0.5, height: 1.0 };
-  const RIGHT_SAFE    = { x: 0.575, y: 0.06, width: 0.40, height: 0.84 };
-  const PORTRAIT_FULL = { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
+  // Use centralized slot configuration
+  const { LEFT_SLOT, RIGHT_SAFE, PORTRAIT_FULL } = SLOT_CONFIG;
 
   try {
     // Set canvas dimensions (high resolution for better quality)

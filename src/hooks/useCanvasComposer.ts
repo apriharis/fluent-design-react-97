@@ -3,6 +3,7 @@ import { useStudioStore } from '@/stores/useStudioStore';
 import { calculateSafeArea } from '@/lib/frameUtils';
 import { calculateCoverFit, clampOffset } from '@/lib/frameDetection';
 import type { SafeRect } from '@/lib/frameDetection';
+import { SLOT_CONFIG } from '@/constants/slots';
 
 interface UseCanvasComposerProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
@@ -51,10 +52,8 @@ export const useCanvasComposer = ({ canvasRef, showMasks = false }: UseCanvasCom
   const rightPhotoImage = useRef<HTMLImageElement | null>(null);
   const frameImage = useRef<HTMLImageElement | null>(null);
 
-  // Slot definitions
-  const LEFT_SLOT: SafeRect   = { x: 0.0,   y: 0.0,  width: 0.5, height: 1.0 };
-  const RIGHT_SAFE: SafeRect  = { x: 0.575, y: 0.06, width: 0.40, height: 0.84 };
-  const PORTRAIT_FULL: SafeRect = { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
+  // Use centralized slot configuration  
+  const { LEFT_SLOT, RIGHT_SAFE, PORTRAIT_FULL } = SLOT_CONFIG;
 
   // Touch handling
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);

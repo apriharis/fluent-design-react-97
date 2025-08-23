@@ -7,7 +7,7 @@ import CameraView from "@/components/CameraView"
 import CanvasComposer from "@/components/CanvasComposer"
 import FramePicker from "@/components/FramePicker"
 import { StudioStepper } from "@/components/StudioStepper"
-import { StudioToolbar } from "@/components/StudioToolbar"
+import StudioToolbar from "@/components/StudioToolbar"
 
 const Studio = () => {
   const { mode, frameSrc, photoDataUrl, leftPhotoDataUrl, rightPhotoDataUrl, reset } = useStudioStore();
