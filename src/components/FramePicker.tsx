@@ -2,16 +2,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FRAME_ASSETS } from "@/lib/assets";
 import { useStudioStore } from "@/stores/useStudioStore";
+import { useNavigate } from "react-router-dom";
 
 const FramePicker = () => {
-  const { setMode, setFrameSrc } = useStudioStore();
+  const navigate = useNavigate();
+  const { 
+    setMode, 
+    setFrameSrc, 
+    setPhotoDataUrl, 
+    setLeftPhotoDataUrl, 
+    setRightPhotoDataUrl 
+  } = useStudioStore();
 
   const handleFrameSelect = (frameId: string) => {
     const frame = FRAME_ASSETS.find(f => f.id === frameId);
     if (!frame) return;
 
+    // 1) set frame & mode
     setMode(frame.mode);
     setFrameSrc(frame.src);
+
+    // 2) reset foto supaya step di /studio langsung ke kamera
+    setPhotoDataUrl(undefined);
+    setLeftPhotoDataUrl(undefined);
+    setRightPhotoDataUrl(undefined);
+
+    // 3) redirect ke /studio (fix untuk halaman "/")
+    navigate("/studio");
   };
 
   return (
