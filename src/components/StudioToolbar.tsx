@@ -9,7 +9,7 @@ interface StudioToolbarProps {
   onBack?: () => void;
 }
 
-const StudioToolbar = ({ onBack }: StudioToolbarProps) => {
+export const StudioToolbar = ({ onBack }: StudioToolbarProps) => {
   const { 
     mode, 
     frameSrc, 
@@ -196,5 +196,3 @@ const StudioToolbar = ({ onBack }: StudioToolbarProps) => {
     </Toolbar>
   );
 };
-
-export default StudioToolbar;

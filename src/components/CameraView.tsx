@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Camera, RotateCcw, FlipHorizontal, Grid3X3, Video, Upload } from 'lucide-react';
 import { useCamera } from '@/hooks/useCamera';
 import { useStudioStore } from '@/stores/useStudioStore';
-import { SLOT_CONFIG } from '@/constants/slots';
 
 interface CameraViewProps {
   onCapture?: (dataUrl: string) => void;
@@ -45,8 +44,9 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
   // PATCH 1: Pakai stageRef (inner container 4:3)
   const stageRef = useRef<HTMLDivElement>(null);
 
-  // Import centralized slot configuration
-  const { LEFT_SLOT, RIGHT_SAFE, PORTRAIT_FULL } = SLOT_CONFIG;
+  // Samakan dengan composer (normalized 0..1)
+  const RIGHT_SAFE = { x: 0.575, y: 0.06, width: 0.40, height: 0.84 };
+  const LEFT_HALF  = { x: 0.0,   y: 0.0,  width: 0.5,  height: 1.0  };
 
   // ========= Utils: mapping kotak biru → sumber video =========
   function getDisplayedVideoRect(video: HTMLVideoElement, container: HTMLElement) {
@@ -67,7 +67,7 @@ const CameraView = ({ onCapture, onRetake, className = '', captureSlot = 'single
     return { x, y, w, h, scale };
   }
 
-  function safeToPx(safe: typeof RIGHT_SAFE | typeof LEFT_SLOT, cw: number, ch: number) {
+  function safeToPx(safe: typeof RIGHT_SAFE | typeof LEFT_HALF, cw: number, ch: number) {
     return { x: safe.x * cw, y: safe.y * ch, w: safe.width * cw, h: safe.height * ch };
   }
 
@@ -215,10 +215,10 @@ const handleCapture = async () => {
   // Overlay safe rect untuk capture:
   const getOverlayRect = () => {
     if (mode === 'portrait') {
-      return PORTRAIT_FULL;
+      return { x: 0.09, y: 0.08, width: 0.82, height: 0.78 };
     }
     if (captureSlot === 'left') {
-      return LEFT_SLOT; // overlay kiri = setengah kiri
+      return LEFT_HALF; // overlay kiri = setengah kiri
     }
     // right:
     return RIGHT_SAFE;  // overlay kanan persis RIGHT_SAFE
